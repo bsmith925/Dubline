@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0d0e10">
+  <meta name="description" content="Plain-language help for creating, reviewing and delivering an English film dub with Dubline.">
+  <title>Help &amp; FAQ · Dubline</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/faq.css">
+</head>
+<body class="faq-body">
+  <div class="faq-shell">
+    <header class="topbar faq-topbar">
+      <a class="brand" href="/" aria-label="Dubline projects"><span class="brand-mark">D</span><span>dubline</span></a>
+      <span class="help-label">Help centre</span>
+      <a class="return-link" href="/">Back to projects <span>→</span></a>
+    </header>
+
+    <aside class="faq-rail" aria-label="FAQ sections">
+      <p class="rail-eyebrow">Browse by topic</p>
+      <nav id="categoryNav">
+        <button class="active" data-category="all"><span>All questions</span><b>24</b></button>
+        <button data-category="start"><span>Getting started</span><b>5</b></button>
+        <button data-category="process"><span>During a dub</span><b>5</b></button>
+        <button data-category="review"><span>Review &amp; quality</span><b>5</b></button>
+        <button data-category="delivery"><span>Files &amp; delivery</span><b>4</b></button>
+        <button data-category="limits"><span>Limits &amp; privacy</span><b>5</b></button>
+      </nav>
+      <div class="fact-card">
+        <span>THE SHORT VERSION</span>
+        <strong>Your media stays here.</strong>
+        <p>After setup, the dubbing models run on this Windows PC. Dubline does not upload your film or voices to a hosted inference service.</p>
+      </div>
+    </aside>
+
+    <main class="faq-main">
+      <section class="faq-hero">
+        <p class="kicker">DUBLINE USER GUIDE</p>
+        <h1>Good questions.<br><em>Straight answers.</em></h1>
+        <p class="hero-copy">Everything you need to start a dub, understand what happens while it runs, and decide when an English master is ready to release.</p>
+        <label class="faq-search">
+          <span aria-hidden="true">⌕</span>
+          <span class="sr-only">Search frequently asked questions</span>
+          <input id="faqSearch" type="search" placeholder="Search questions — try “subtitles” or “pause”" autocomplete="off">
+          <kbd>/</kbd>
+        </label>
+      </section>
+
+      <section class="answer-first" aria-labelledby="what-is-dubline">
+        <div class="answer-number">01</div>
+        <div>
+          <p class="kicker">START HERE</p>
+          <h2 id="what-is-dubline">What is Dubline?</h2>
+          <p>Dubline turns a local film or audio programme into an English-language dub. It finds the dialogue, separates it from music and effects, works out who is speaking, translates and performs each line, fits those lines to the original timing, then adds a new English track to an MKV.</p>
+          <p>It is designed for an unattended full-film run. If a line or delivery check cannot be resolved automatically, the film is still produced when possible and is clearly marked <strong>Needs review</strong>.</p>
+        </div>
+        <a class="primary" href="/">Start a dub <b>→</b></a>
+      </section>
+
+      <section class="quick-start" aria-labelledby="quick-start-title">
+        <div class="section-heading">
+          <p class="kicker">THREE STEPS</p>
+          <h2 id="quick-start-title">The quickest way through</h2>
+        </div>
+        <div class="quick-grid">
+          <article><span>01</span><h3>Choose the source</h3><p>Drop in one film, or use its full local path for a very large file. Add matching subtitle files only if you have them.</p></article>
+          <article><span>02</span><h3>Confirm and start</h3><p>Optionally choose a section, add pronunciations, and ask Dubline to pause before voices. Confirm you have voice rights.</p></article>
+          <article><span>03</span><h3>Check the result</h3><p>Download immediately only when QC passed. If it says Needs review, inspect the report and correct the flagged lines first.</p></article>
+        </div>
+      </section>
+
+      <section class="faq-list-section" aria-labelledby="questions-title">
+        <div class="section-heading question-heading">
+          <div><p class="kicker">COMMON QUESTIONS</p><h2 id="questions-title">All the practical details</h2></div>
+          <p id="resultCount" aria-live="polite">Showing 24 questions</p>
+        </div>
+
+        <div class="faq-results" id="faqResults">
+          <section class="faq-group" data-group="start">
+            <header><span>01</span><div><p>GETTING STARTED</p><h3>Sources, subtitles and the first run</h3></div></header>
+            <details class="faq-item" id="supported-files" data-search="supported file format container video audio mkv mp4 mov avi webm mxf vob wav flac mp3">
+              <summary><span>Which files can I use?</span><i></i></summary>
+              <div><p>You can use common consumer and professional video containers, including MKV, MP4, MOV, AVI, WebM, MPEG, WMV, MXF, VOB, MTS/M2TS and 3GP. Audio-only programmes can be WAV, FLAC, MP3, M4A, AAC, OGG, Opus, WMA or AIFF.</p><p>Dubline needs a readable audio programme. It can process an entire source or a precise start/end section.</p></div>
+            </details>
+            <details class="faq-item" id="add-subtitles" data-search="subtitle sidecar srt ass ssa vtt sub idx embedded bitmap asr">
+              <summary><span>Do I need to provide subtitles?</span><i></i></summary>
+              <div><p>No. Dubline checks usable sidecar and embedded subtitles, then falls back to speech recognition when needed. Supported sidecars are SRT, ASS, SSA, VTT and VobSub SUB/IDX pairs.</p><p>For one uploaded film, add the subtitle in the same drop. For several films, give each sidecar the same base filename as its film. When you use a local path, Dubline also checks for same-name sidecars beside the source.</p></div>
+            </details>
+            <details class="faq-item" id="large-files" data-search="large huge file local path copy upload disk space ssd workdir">
+              <summary><span>Should I drop the film in or use its local path?</span><i></i></summary>
+              <div><p>Both start the same dubbing process. Drag-and-drop makes a restart-safe copy in the job workspace. For a feature film or a large master, the local-path option avoids that second source copy and is usually the better choice.</p><p>Intermediate stems and takes still require substantial working space. If space is tight, the operator can place the Dubline work folder on a larger SSD.</p></div>
+            </details>
+            <details class="faq-item" id="film-section" data-search="clip section range start end full film test sample timestamp character scan">
+              <summary><span>Can I dub only part of a film?</span><i></i></summary>
+              <div><p>Yes. Enter the section start, end, or both as <strong>MM:SS</strong> or <strong>HH:MM:SS</strong>. Leave both blank for the complete film. This is useful for a test scene.</p><p>Even for a section, Dubline can scan the original complete film for recurring-character evidence. That wider context helps it distinguish voices more reliably.</p></div>
+            </details>
+            <details class="faq-item" id="rights" data-search="rights permission consent voice clone copyright commercial licence license">
+              <summary><span>Why must I confirm voice rights?</span><i></i></summary>
+              <div><p>Dubline recreates voice characteristics from the source. You must have the necessary rights and permission to dub the media and reproduce those voices before a job can start.</p><p>That confirmation does not grant rights or replace legal advice. Commercial users should also review the licences for the source media and the bundled speech models.</p></div>
+            </details>
+          </section>
+
+          <section class="faq-group" data-group="process">
+            <header><span>02</span><div><p>DURING A DUB</p><h3>Automatic decisions and long-running work</h3></div></header>
+            <details class="faq-item" id="what-happens" data-search="process pipeline understand separate translate voice mix qc automatic stages">
+              <summary><span>What happens after I press “Dub”?</span><i></i></summary>
+              <div><p>Dubline inspects the media, chooses dialogue evidence, separates speech from music and effects, maps speakers and timing, translates scene by scene, generates and fits English performances, rebuilds the mix, adds the English track, and checks the delivered file.</p><p>The progress view groups that work into Inspect, Separate, Understand, Voice, Timeline and Video.</p></div>
+            </details>
+            <details class="faq-item" id="track-choice" data-search="audio soundtrack track commentary description director subtitle forced automatic choose programme">
+              <summary><span>How does it choose the right soundtrack and subtitle track?</span><i></i></summary>
+              <div><p>It favours full programme tracks and avoids labels such as commentary, audio description, director, isolated score, music-only and karaoke. It also avoids forced/signs-only or commentary subtitles when a full dialogue track is available.</p><p>If more than one track is genuinely plausible, the job pauses and asks you to choose. Pick the full dialogue programme—not a commentary or accessibility mix.</p></div>
+            </details>
+            <details class="faq-item" id="how-long" data-search="time duration eta speed long wait gpu processing estimate overnight">
+              <summary><span>How long will a film take?</span><i></i></summary>
+              <div><p>There is no dependable universal multiple of the film runtime: scene complexity, line count, retries, source quality and this PC’s GPU all matter. The first completed film establishes a local baseline; later jobs show an estimate based on completed work on this machine.</p><p>Only one GPU-heavy job runs at a time, so additional films wait in the queue.</p></div>
+            </details>
+            <details class="faq-item" id="pause-resume" data-search="pause resume retry checkpoint restart crash close stop continue queued">
+              <summary><span>Can I pause or recover a job?</span><i></i></summary>
+              <div><p>Yes. Pause asks the active stage to stop at a safe checkpoint; Resume continues from committed work. If processing stops with an error, use <strong>Retry from checkpoint</strong>. Dubline keeps cue sheets, references, completed takes and reusable stems so a restart does not intentionally begin from zero.</p><p>A queued job pauses immediately. An active model may need a short moment to reach its next safe control point.</p></div>
+            </details>
+            <details class="faq-item" id="cancel" data-search="cancel delete remove project intermediate files storage">
+              <summary><span>What does Cancel do?</span><i></i></summary>
+              <div><p>Cancel stops future processing and safely terminates active work. Intermediate files remain in the project workspace so the state is not silently destroyed. Removing a project and its workspace is a separate operation; the current end-user screen does not expose a delete button.</p></div>
+            </details>
+          </section>
+
+          <section class="faq-group" data-group="review">
+            <header><span>03</span><div><p>REVIEW &amp; QUALITY</p><h3>What “passed” means—and what it does not</h3></div></header>
+            <details class="faq-item" id="qc-passed" data-search="qc passed complete quality checks green release automatic">
+              <summary><span>What does “QC passed” mean?</span><i></i></summary>
+              <div><p>It means every automatic line check and delivery check produced acceptable evidence: dialogue wording, speaker similarity, timing, performance measures, clipping, leakage, loudness, stream preservation and final-file structure.</p><p>It is a strong technical gate, not a promise of creative perfection. For a public or commercial release, a human should still watch and listen to the programme.</p></div>
+            </details>
+            <details class="faq-item" id="needs-review" data-search="needs review flagged warning output produced release unresolved evidence issue">
+              <summary><span>What does “Needs review” mean?</span><i></i></summary>
+              <div><p>Dubline produced a playable dub, but one or more lines or delivery checks remain unresolved. Open the QC report and use the stated reasons rather than treating the warning as a generic failure.</p><p>Common causes include uncertain words or speakers, a translation concern, a timing/performance mismatch, overlapping voices, dialogue leakage, or a final loudness/stream-preservation problem.</p></div>
+            </details>
+            <details class="faq-item" id="edit-lines" data-search="edit fix regenerate line transcript translation timing speaker name split merge approval review">
+              <summary><span>Can I correct a line without restarting the film?</span><i></i></summary>
+              <div><p>Yes. A flagged line can be corrected and regenerated on its own. You can revise the source transcript, English line, character name and timing. In the pre-voice approval pause, you can also split or merge cues before continuing.</p><p>Changing a character name renames that recognised voice across the project. Edited audio and downstream mix/QC files are rebuilt so an old take cannot slip back into delivery.</p></div>
+            </details>
+            <details class="faq-item" id="approval-workflow" data-search="approval pause before voices transcript translation review pronunciation glossary">
+              <summary><span>How do I review the translation before voices are generated?</span><i></i></summary>
+              <div><p>Open <strong>Review and pronunciation controls</strong> before starting and select the option to pause for review. Dubline completes dialogue analysis and translation, then waits before the lengthy voice stage. Edit the timeline as needed and choose <strong>Continue to voices</strong>.</p></div>
+            </details>
+            <details class="faq-item" id="pronunciation" data-search="pronounce pronunciation glossary names acronym spelling spoken text">
+              <summary><span>How does the pronunciation glossary work?</span><i></i></summary>
+              <div><p>Add one replacement per line in the form <strong>term = spoken form</strong>, for example <strong>Sato = Sah-toh</strong>. The right-hand text is sent to speech generation while the English subtitle wording remains unchanged.</p><p>Use it for names, acronyms and unusual terms. It is a literal project-wide replacement, so choose entries that will not accidentally match ordinary words.</p></div>
+            </details>
+          </section>
+
+          <section class="faq-group" data-group="delivery">
+            <header><span>04</span><div><p>FILES &amp; DELIVERY</p><h3>Masters, tracks and useful handoffs</h3></div></header>
+            <details class="faq-item" id="main-output" data-search="output mkv download english track original video streams chapters metadata flac default">
+              <summary><span>What is in the downloaded MKV?</span><i></i></summary>
+              <div><p>The MKV keeps the original picture, original streams, chapters and container metadata, then adds an English-labelled FLAC delivery track. The new dub is non-default, so the source’s existing default-track choices are not silently changed.</p><p>FLAC describes the delivery codec. It does not mean AI-generated speech is mathematically identical to a studio recording or free of synthesis artefacts.</p></div>
+            </details>
+            <details class="faq-item" id="extra-exports" data-search="exports srt csv edl zip clips stems mix dialogue flac qc report">
+              <summary><span>What else can I export?</span><i></i></summary>
+              <div><p>Completed projects expose an English SRT, cue CSV, 24 fps CMX-style EDL, a ZIP of per-line audio, the English mix FLAC and the dialogue-only FLAC. The workspace also retains per-character stems and detailed cue state for production handoff.</p></div>
+            </details>
+            <details class="faq-item" id="surround-atmos" data-search="stereo 5.1 7.1 surround atmos multichannel m&e dme bed objects">
+              <summary><span>Does it create surround sound or Atmos?</span><i></i></summary>
+              <div><p>With a genuine supplied M&amp;E/DME bed, Dubline can preserve or build a stereo, 5.1 or 7.1 English bed as the source allows. Without one, the generated English delivery is explicitly stereo.</p><p>It preserves original Atmos and other multichannel source tracks, but it does not author or reconstruct Atmos objects.</p></div>
+            </details>
+            <details class="faq-item" id="mastering" data-search="mastering loudness cinema lufs true peak broadcast web fixed setting">
+              <summary><span>Which loudness setting does the end-user screen use?</span><i></i></summary>
+              <div><p>The simple start screen is fixed to the cinema delivery policy: dialogue-gated −27 LUFS with a −2 dBTP true-peak ceiling. Other mastering policies exist in the underlying production API, but they are not selectable on this end-user start screen.</p></div>
+            </details>
+          </section>
+
+          <section class="faq-group" data-group="limits">
+            <header><span>05</span><div><p>LIMITS &amp; PRIVACY</p><h3>Clear boundaries before you commit</h3></div></header>
+            <details class="faq-item" id="privacy" data-search="privacy private local offline cloud upload internet hosted data film voice machine">
+              <summary><span>Does my film or voice leave this computer?</span><i></i></summary>
+              <div><p>No hosted inference service is used. After the one-time setup has downloaded the software and models, analysis, translation, speech generation, mixing and QC run locally.</p><p>Project files remain in Dubline’s local work folder until they are removed. Setup itself needs internet access for downloads, and the optional pyannote model requires its publisher’s agreement and access token.</p></div>
+            </details>
+            <details class="faq-item" id="languages" data-search="language english output translate target foreign source unsupported">
+              <summary><span>Can it dub into a language other than English?</span><i></i></summary>
+              <div><p>Not from this end-user interface. It automatically detects the source language and produces English dialogue. The underlying components understand several languages, but this product flow, labels, quality policy and deliverable are fixed to English.</p></div>
+            </details>
+            <details class="faq-item" id="streaming-disc" data-search="url youtube netflix streaming drm network disc dvd bluray blu-ray iso decrypt remote">
+              <summary><span>Can I give it a URL, streaming title, disc or ISO?</span><i></i></summary>
+              <div><p>No. Dubline accepts local files that FFmpeg can read. It does not download network URLs, bypass streaming or DRM protections, decrypt DVD/Blu-ray discs, or author an ISO. Prepare a lawful, readable local media file first.</p></div>
+            </details>
+            <details class="faq-item" id="voice-match" data-search="voice clone identical biometric guarantee actor identity speaker overlap crowd singing laughter">
+              <summary><span>Will every voice be an exact clone?</span><i></i></summary>
+              <div><p>No. Voice matching is confidence-scored synthesis, not a guarantee of biometric identity. Clean recurring speakers get the strongest reference evidence; short, masked, off-screen or uncertain voices may be less exact and are flagged when evidence is weak.</p><p>Laughter, crying, breaths, screams, grunts, singing and crowd walla are generally retained from the source performance rather than recreated as English speech.</p></div>
+            </details>
+            <details class="faq-item" id="lip-sync" data-search="lip sync lipsync face replacement musetalk mouth hdr dolby vision profile group shot">
+              <summary><span>Does it replace faces or lip-sync the whole film?</span><i></i></summary>
+              <div><p>No. Normal synchronization is audio-side timing. Optional MuseTalk finishing is disabled by default and, when an operator enables it, is limited to a few clear single-face shots with strong speaker evidence and a remaining visible sync problem.</p><p>It deliberately refuses risky material such as HDR/Dolby Vision, 10/12-bit or multi-video-stream sources, and skips group shots, distant faces and unreliable profiles. It is not full-film generative face replacement.</p></div>
+            </details>
+          </section>
+
+          <div class="empty-state hidden" id="emptyState">
+            <span>⌕</span><h3>No exact match</h3><p>Try a shorter phrase such as “subtitle”, “track”, “pause”, “quality” or “privacy”.</p><button id="clearSearch" class="secondary">Clear search</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="boundary-card" aria-labelledby="boundary-title">
+        <div><p class="kicker">IMPORTANT BOUNDARY</p><h2 id="boundary-title">A careful assistant, not a replacement for final human judgement.</h2></div>
+        <p>Dubline is built to fail visibly when evidence is weak. A green result means the automated checks passed; a yellow result means the dub exists but needs attention. Neither status transfers rights, guarantees a perfect actor match, or replaces a full listen before release.</p>
+      </section>
+    </main>
+
+    <footer class="faq-footer">
+      <a class="brand" href="/"><span class="brand-mark">D</span><span>dubline</span></a>
+      <p>Local film dubbing · English delivery · Evidence-led QC</p>
+      <a href="/">Return to projects →</a>
+    </footer>
+  </div>
+  <script src="/static/faq.js"></script>
+</body>
+</html>

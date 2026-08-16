@@ -1,0 +1,74 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environments
+.venv/
+.venv2/
+venv/
+env/
+*env/
+ENV/
+env.bak/
+venv.bak/
+
+# Local configuration & credentials
+.env
+.env.local
+*.pem
+*.key
+
+# Job data & workspace outputs
+data/
+output/
+scratch/
+temp/
+*.tmp
+
+# Third-party vendor repositories & downloaded models
+vendor/
+checkpoints/
+models/
+hf_cache/
+
+# Large model weight formats
+*.bin
+*.ckpt
+*.pt
+*.pth
+*.safetensors
+*.gguf
+*.onnx
+*.engine
+
+# Test & coverage caches
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# Media and stream files
+*.wav
+*.flac
+*.mp3
+*.aac
+*.ogg
+*.m4a
+*.mkv
+*.mp4
+*.mov
+*.avi
+*.webm
+*.ts
+*.m2ts
+
+# OS & IDE artifacts
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

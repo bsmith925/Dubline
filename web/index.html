@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0d0e10">
+  <title>Dubline · Local AI video dubbing</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/flow.css">
+  <link rel="stylesheet" href="/static/emotion.css">
+  <link rel="stylesheet" href="/static/qc.css">
+  <style>.topnav{margin-left:28px}.topnav a{color:var(--muted);text-decoration:none;font-size:11px;font-weight:700}.topnav a:hover{color:var(--ink)}@media(max-width:520px){.topnav{margin-left:16px}.topnav a{font-size:10px}}</style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="Dubline home"><span class="brand-mark">D</span><span>dubline</span></a>
+      <nav class="topnav" aria-label="Help"><a href="/faq">Help &amp; FAQ</a></nav>
+      <div class="system-state" id="systemState"><i></i><span>Checking local engine…</span></div>
+      <button class="icon-button mobile-jobs" id="mobileJobs" aria-label="Open projects">☰</button>
+    </header>
+
+    <aside class="rail" id="rail">
+      <div class="rail-heading"><span>Projects</span><button class="new-button" id="newJob" title="New project">＋</button></div>
+      <div class="job-list" id="jobList"><div class="list-empty">No projects yet</div></div>
+      <div class="local-note"><span class="lock">⌾</span><div><strong>Private by design</strong><small>Video and voices stay on this machine.</small></div></div>
+    </aside>
+
+    <main class="workspace">
+      <section id="createView" class="view create-view">
+        <div class="intro">
+          <p class="kicker">FULL-FILM ENGLISH DUBBING · ON THIS PC</p>
+          <h1>Drop in a film.<br><span>Get back the English dub.</span></h1>
+          <p>No pipeline setup. Dubline finds the best dialogue source, separates voices from music and effects, identifies recurring speakers, translates every scene, recreates each performance and returns one precisely timed MKV.</p>
+          <div class="absolute-strip" aria-label="Fixed delivery settings">
+            <span><i>EN</i> English output</span>
+            <span><i>MKV</i> Original picture and tracks preserved</span>
+            <span><i>GPU</i> Fully local CUDA processing</span>
+          </div>
+        </div>
+
+        <div class="source-card">
+          <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose a complete film and optional subtitle files">
+            <input id="files" type="file" multiple accept="video/*,audio/*,.mkv,.mp4,.mov,.avi,.webm,.m4v,.ts,.mts,.m2ts,.mpeg,.mpg,.wmv,.mxf,.vob,.3gp,.wav,.flac,.mp3,.m4a,.aac,.ogg,.opus,.wma,.srt,.ass,.ssa,.vtt,.sub,.idx">
+            <div class="drop-art"><span>↓</span><i></i><i></i></div>
+            <div><h2>Drop your film or audio programme here</h2><p>Consumer and professional media containers · add an .srt, .sub or .idx in the same drop only when you have one</p></div>
+            <button class="secondary" id="chooseFiles">Choose a film</button>
+          </div>
+          <div id="selection" class="selection hidden"></div>
+          <div class="range-card" aria-label="Film section">
+            <div><strong>Film section</strong><span id="sourceDuration">Leave both times blank to dub the complete film.</span></div>
+            <label><span>Start</span><input id="rangeStart" inputmode="numeric" placeholder="00:00:00" aria-label="Section start time"></label>
+            <span class="range-arrow">→</span>
+            <label><span>End</span><input id="rangeEnd" inputmode="numeric" placeholder="End of film" aria-label="Section end time"></label>
+            <button class="ghost" id="fullRange" type="button">Full film</button>
+          </div>
+          <div class="track-card hidden" id="audioTrackRow"><label><span>Working soundtrack</span><select id="audioTrack"></select></label><label class="hidden" id="subtitleTrackLabel"><span>Dialogue subtitles</span><select id="subtitleTrack"></select></label><small>Choose the full programme tracks, not commentary, forced signs, or audio description.</small></div>
+          <details class="release-controls">
+            <summary>Review and pronunciation controls</summary>
+            <div class="control-grid">
+              <label class="check-control"><input id="approvalWorkflow" type="checkbox"><span>Pause for transcript and translation review before generating voices</span></label>
+              <label><span>Pronunciation glossary</span><textarea id="glossary" rows="3" placeholder="Sato = Sah-toh&#10;NGINX = engine-ex"></textarea></label>
+              <label class="check-control required"><input id="voiceRights" type="checkbox"><span>I confirm I have the necessary rights and permission to dub this media and reproduce its voices.</span></label>
+            </div>
+          </details>
+          <div class="automatic-plan" aria-label="Automatic processing plan">
+            <div><span>01</span><strong>Understand</strong><small>language, subtitles, scenes and speakers</small></div>
+            <i>→</i>
+            <div><span>02</span><strong>Perform</strong><small>translation, voice and emotion</small></div>
+            <i>→</i>
+            <div><span>03</span><strong>Deliver</strong><small>cinema mix, exact timeline and QC</small></div>
+          </div>
+          <div class="start-row">
+            <p><span>✓</span> One automatic pass · safe to leave unattended</p>
+            <button class="primary" id="startDub" disabled>Dub the complete film <b>→</b></button>
+          </div>
+          <details class="local-source">
+            <summary>Very large film? Use its path without making a second copy</summary>
+            <div><textarea id="localPath" rows="2" placeholder="C:\Films\feature-film.mkv&#10;C:\Films\second-film.mxf" aria-label="Full local film path"></textarea><button id="probeLocal" class="ghost">Check first</button><button id="startLocal" class="secondary">Dub file(s)</button></div>
+          </details>
+        </div>
+
+        <div class="feature-strip">
+          <article><span>FULL LENGTH</span><h3>Built for feature films</h3><p>Restart-safe stages and bounded model memory handle long timelines.</p></article>
+          <article><span>AUTOMATIC</span><h3>Only exceptions surface</h3><p>Failed takes retry themselves; unresolved lines remain in the QC report.</p></article>
+          <article><span>PRIVATE</span><h3>Nothing leaves this PC</h3><p>Models, video, voices and final rendering remain local.</p></article>
+        </div>
+      </section>
+
+      <section id="jobView" class="view job-view hidden">
+        <div class="job-topline">
+          <button class="back-button" id="backButton">← Projects</button>
+          <div class="job-actions"><button class="ghost" id="pauseButton">Pause</button><button class="ghost danger" id="cancelButton">Cancel</button></div>
+        </div>
+        <div class="job-hero">
+          <div><p class="kicker" id="jobStatus">IN PROGRESS</p><h1 id="jobTitle">Video title</h1><p id="jobMeta">Preparing media</p></div>
+          <div class="ring" id="progressRing"><strong id="jobPercent">0%</strong><span>complete</span></div>
+        </div>
+        <div class="progress-card">
+          <div class="stage-line"><div><span class="pulse"></span><strong id="jobStage">Waiting for GPU worker</strong></div><span id="etaLabel">Timeline protected</span></div>
+          <div class="progress-track"><i id="progressBar"></i></div>
+          <div class="pipeline-steps" id="pipelineSteps">
+            <span data-at="2">Inspect</span><span data-at="7">Separate</span><span data-at="26">Understand</span><span data-at="35">Voice</span><span data-at="83">Timeline</span><span data-at="95">Video</span>
+          </div>
+        </div>
+
+        <div class="metrics" id="metrics">
+          <article><span>Dialogue source</span><strong id="cueSource">Detecting…</strong></article>
+          <article><span>Voice lines</span><strong id="lineCount">—</strong></article>
+          <article><span>Runtime</span><strong id="runtime">—</strong></article>
+          <article><span>Frame</span><strong id="dimensions">—</strong></article>
+        </div>
+
+        <div class="result-banner hidden" id="resultBanner">
+          <div class="result-icon" id="resultIcon">✓</div><div><p id="resultLabel">ENGLISH DUB READY</p><h2 id="resultTitle">Automatic checks complete.</h2><span id="outputSize"></span></div>
+          <a class="secondary" id="qcButton">QC report</a><a class="primary" id="downloadButton">Download .mkv <b>↓</b></a>
+          <details class="export-menu"><summary>More exports</summary><div><a id="srtExport">SRT</a><a id="csvExport">CSV</a><a id="edlExport">EDL</a><a id="clipsExport">Audio package</a><a id="mixExport">Mix FLAC</a><a id="dialogueExport">Dialogue FLAC</a></div></details>
+        </div>
+        <div class="error-banner hidden" id="errorBanner"><strong>Processing stopped</strong><span id="errorText"></span><button class="secondary" id="resumeButton">Retry from checkpoint</button></div>
+        <div class="approval-banner hidden" id="approvalBanner"><div><strong id="approvalTitle">Transcript and translation ready</strong><span id="approvalText">Review or edit the lines below. Voice generation will not start until you continue.</span><div class="job-track-pickers hidden" id="jobTrackPickers"><label>Programme audio<select id="jobAudioTrack"></select></label><label>Dialogue subtitles<select id="jobSubtitleTrack"></select></label></div></div><button class="primary" id="approveButton">Continue to voices →</button></div>
+
+        <section class="cue-panel">
+          <div class="panel-heading"><div><p class="kicker">VOICE TIMELINE</p><h2>English lines</h2></div><div class="legend"><i></i> Precisely fitted</div></div>
+          <div class="cue-head"><span>TIME</span><span>DIALOGUE</span><span>VOICE</span><span>STATE</span></div>
+          <div id="cueList" class="cue-list"><div class="cue-empty">Lines will appear after dialogue analysis.</div></div>
+        </section>
+        <details class="activity"><summary>Processing notes</summary><div id="logList"></div></details>
+      </section>
+    </main>
+  </div>
+  <div class="toast hidden" id="toast"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
