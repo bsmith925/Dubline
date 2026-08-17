@@ -14,7 +14,7 @@
 
 **Dubline** is an end-to-end cinematic audio dubbing system designed to translate and dub full-length feature films and video programmes into English entirely offline on local CUDA hardware. 
 
-Drop in any video file (with optional sidecar subtitles), click **Dub**, and receive a broadcast-ready MKV with master-quality English dialogue and music/effects (M&E) stems, complete with automated quality-control (QC) reports.
+Drop in any video file (with optional sidecar subtitles), select your workflow policy, and receive a broadcast-ready MKV with master-quality English dialogue and music/effects (M&E) stems, complete with automated quality-control (QC) reports.
 
 ```
 ┌─────────────┐     ┌───────────────────────┐     ┌───────────────────────┐
@@ -43,6 +43,33 @@ Drop in any video file (with optional sidecar subtitles), click **Dub**, and rec
 
 ---
 
+## How to Use
+
+### 1. Ingesting Media
+- **Local Path Input (Recommended for Films):** Paste the absolute path to a local media file (e.g. `D:\Movies\Film.mkv`). This bypasses browser upload limits and avoids redundant file copies.
+- **Drag & Drop:** Drop consumer or professional media files directly into the UI.
+  - *Supported Containers:* `mkv`, `mp4`, `mov`, `avi`, `webm`, `ts`, `m2ts`, `mxf`, `wav`, `flac`, `mp3`, `m4a`, `ogg`.
+- **Subtitles:** Drop optional sidecar subtitle files (`.srt`, `.vtt`, `.sub`/`.idx`). If omitted, the pipeline runs automatic speech recognition (Qwen3-ASR & Whisper) and forced alignment.
+
+### 2. Time-Range Selection (Diagnostic / Scene Dubbing)
+- **Full Film:** Leave start/end empty to process the complete runtime.
+- **Time Slice:** Specify a custom timecode window (e.g. `20:20` to `22:00`). Dubline automatically trims and shifts subtitles and audio while maintaining full-film context for speaker identity clustering.
+
+### 3. Automation Policies
+Choose your preferred level of automation on the web dashboard:
+- **Fully Automatic (Default):** Runs unattended from ingest to final delivery. Failed cues are retried automatically with alternative candidate phrasing or fallback TTS models. Any unresolved anomalies are flagged in the final report.
+- **Review Flagged Lines:** Dubs the film and presents an editorial interface showing only cues that failed QC metrics (e.g. high WER, timing skew, or low speaker similarity) for one-click re-generation or manual editing.
+- **Approval Workflow:** Performs stem separation, diarization, transcription, and translation/adaptation, then pauses before synthesis. Allows you to review character names, edit translated lines, split/merge cues, or import custom glossaries.
+
+### 4. Audio Mastering Targets
+Select the target loudness standard for the delivered English audio track:
+- **Cinema (−27 LUFS / −2 dBTP):** Dialogue-gated theatrical dynamic range standard.
+- **EBU R128 / Broadcast (−23 LUFS / −1 dBTP):** Standard television broadcast delivery.
+- **Web / Streaming (−16 LUFS / −1 dBTP):** High-loudness target for online platforms.
+- **Unmastered:** Raw balanced stems without final limiter/compressor coloration.
+
+---
+
 ## Pipeline Architecture
 
 1. **Preflight & Ingest:** Probes containers, streams, chapters, timebases, and audio layouts. Automatically trims and synchronizes sidecar subtitles or extracts internal tracks.
@@ -54,6 +81,36 @@ Drop in any video file (with optional sidecar subtitles), click **Dub**, and rec
 7. **Generate–Measure–Reject Loop:** Trims outer silence, verifies active duration, and retries overlong lines. Applies non-linear Rubber Band time-stretching strictly to voiced phrases (< 8% skew, < 5% for visible mouth close-ups).
 8. **Automated Quality Control (QC):** Back-transcribes every synthesized take with Whisper Turbo to calculate WER/CER, speaker cosine similarity, and M&E bed leakage.
 9. **Acoustic Finish & Delivery:** Renders multichannel/stereo English FLAC delivery tracks, muxes with the original video container, and outputs comprehensive HTML/JSON QC reports.
+
+---
+
+## Restrictions & Scope
+
+- **Local Video Files Only:** Designed for local DRM-free files. It does not ingest encrypted disc images (ISO/AACS), protected stream URLs, or DRM-wrapped media.
+- **Target Language:** Currently specialized for dubbing foreign-language films into **English**.
+- **Hardware Architecture:** Requires an NVIDIA CUDA-capable GPU. CPU inference is supported as a fallback for LLM adaptation, but real-time separation and TTS synthesis require a CUDA device.
+- **Audio Channel Boundaries:** When a discrete 5.1/7.1 M&E bed is provided, it is preserved in the final mix. For stereo sources, the pipeline outputs an enhanced spatialized stereo delivery.
+
+---
+
+## Inherent Limitations
+
+- **Extreme Dramatic Vocalizations:** While IndexTTS 2.5 and Qwen3-TTS capture natural speech nuances and prosody, extreme edge cases (screaming in terror, hysterical sobbing, guttural monster sounds, or fast multi-person banter) may still lack the dramatic depth of human voice actors.
+- **Dense Mono Dialogue Overlaps:** When two characters speak simultaneously over a single mono microphone track, source separation models cannot always isolate 100% clean voiceprints. In such cases, Dubline preserves the natural background audio and flags the cue as `Needs review`.
+- **Processing Time:** Processing a 2-hour feature film through multi-pass neural separation, speaker clustering, LLM adaptation, and multi-take TTS synthesis is computationally intensive and will take several hours on consumer GPUs.
+- **Generative Lip-Sync Scope (MuseTalk):** The optional visual lip-sync pass is deliberately conservative. It only processes clear, single-face forward angles and skips complex multi-face shots, distance scenes, or HDR/10-bit color grades to protect master picture quality.
+
+---
+
+## Troubleshooting & Problem Areas
+
+| Issue | Cause | Solution |
+| :--- | :--- | :--- |
+| **CUDA Out of Memory (OOM)** | Background apps or browser consuming VRAM on 8 GB cards | Close VRAM-heavy applications before starting long feature films. Set `DUB_LLAMA_GPU_LAYERS=20` to offload fewer LLM layers if needed. |
+| **Rubberband Audio Filter Error** | FFmpeg build missing `librubberband` library | Ensure your local FFmpeg installation includes Rubber Band support for audio time-stretching. |
+| **Pyannote Model Download Fails** | Hugging Face gated access requirement | Pyannote models require accepting user conditions on Hugging Face. Generate an access token and place it in `.env` under `HF_TOKEN=your_token`. |
+| **Subtitle Alignment Drifts** | Frame rate mismatch or non-standard timebases | Check that sidecar subtitles match the film's frame rate (23.976 / 24 / 25 / 29.97 fps) or remove the sidecar to let automatic ASR forced-alignment handle timing. |
+| **Slow Processing on Long Media** | Working drive I/O bottlenecks | Ensure `DUB_WORKDIR` points to a fast internal NVMe/SSD drive with at least 40 GB free space. |
 
 ---
 
