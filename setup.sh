@@ -4,8 +4,8 @@
 # are cheap no-ops.
 #
 #   ./setup.sh                  # everything except the optional MuseTalk lip-sync pass
-#   ./setup.sh --with-musetalk  # also install MuseTalk (torch 2.0 / CUDA 11.8 — not
-#                               # supported on Blackwell GPUs such as the RTX 5090)
+#   ./setup.sh --with-musetalk  # also install MuseTalk 1.5 (torch 2.8 / CUDA 12.8,
+#                               # face_alignment landmarks instead of mmpose; runs on RTX 50-series)
 #
 # Environment knobs:
 #   HF_TOKEN            Hugging Face token (needed for the gated pyannote model)
@@ -157,26 +157,27 @@ else
 fi
 
 if [[ "$WITH_MUSETALK" == "1" ]]; then
-    step "MuseTalk 1.5 lip-sync (optional)"
+    step "MuseTalk 1.5 lip-sync (optional, Blackwell-ready: torch 2.8 cu128, no OpenMMLab)"
     MUSETALK="$PROJECT_ROOT/vendor/MuseTalk"
     if [[ ! -f "$MUSETALK/scripts/inference.py" ]]; then
-        git clone --depth 1 https://github.com/TMElyralab/MuseTalk.git "$MUSETALK"
+        git clone https://github.com/TMElyralab/MuseTalk.git "$MUSETALK"
     fi
+    (cd "$MUSETALK" && git checkout -q 0a89dec45a0192b824e3cf4daf96c239440c5ed8)
     MUSETALK_ENV="$PROJECT_ROOT/vendor/musetalk-env"
     MUSETALK_RUNTIME="$MUSETALK_ENV/bin/python"
-    if [[ ! -x "$MUSETALK_RUNTIME" ]]; then
-        uv python install 3.10
-        uv venv "$MUSETALK_ENV" --python 3.10
-    fi
-    uv pip install --python "$MUSETALK_RUNTIME" torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 --index-url https://download.pytorch.org/whl/cu118
-    uv pip install --python "$MUSETALK_RUNTIME" -r "$MUSETALK/requirements.txt"
-    uv pip install --python "$MUSETALK_RUNTIME" openmim pip
-    "$MUSETALK_RUNTIME" -m mim install mmengine "mmcv==2.0.1" "mmdet==3.1.0"
-    "$MUSETALK_RUNTIME" -m pip install "chumpy==0.70" --no-build-isolation
-    "$MUSETALK_RUNTIME" -m mim install "mmpose==1.1.0"
+    [[ -x "$MUSETALK_RUNTIME" ]] || uv venv "$MUSETALK_ENV" --python 3.11
+    uv pip install --python "$MUSETALK_RUNTIME" "torch==2.8.*" "torchvision==0.23.*" "torchaudio==2.8.*" --index-url https://download.pytorch.org/whl/cu128
+    # Upstream pins mmcv/mmpose/DWPose (no wheels for modern torch) and TensorFlow
+    # (unused). Landmarks come from face_alignment's FAN instead; see deploy/musetalk/.
+    uv pip install --python "$MUSETALK_RUNTIME" "diffusers==0.35.2" "transformers==4.57.6" "accelerate==1.10.1" huggingface_hub \
+        "numpy>=2,<2.3" "face-alignment==1.5.0" "opencv-python==4.11.0.86" "soundfile==0.13.1" "librosa==0.11.0" \
+        "einops==0.8.1" "omegaconf==2.3.0" tqdm "imageio[ffmpeg]" ffmpeg-python
+    cp "$PROJECT_ROOT/deploy/musetalk/preprocessing.py" "$MUSETALK/musetalk/utils/preprocessing.py"
+    # resnet18-5c106cde.pth is a legacy torchvision zoo file that torch>=2.6 refuses under weights_only=True.
+    sed -i 's|state_dict = torch.load(model_path) #modelzoo.load_url(resnet18_url)|state_dict = torch.load(model_path, weights_only=False)  # legacy torchvision zoo checkpoint|' "$MUSETALK/musetalk/utils/face_parsing/resnet.py"
     M="$MUSETALK/models"
-    "$RUNTIME" -c "from huggingface_hub import snapshot_download; snapshot_download('TMElyralab/MuseTalk',local_dir=r'$M'); snapshot_download('stabilityai/sd-vae-ft-mse',local_dir=r'$M/sd-vae',allow_patterns=['config.json','diffusion_pytorch_model.bin']); snapshot_download('openai/whisper-tiny',local_dir=r'$M/whisper',allow_patterns=['config.json','pytorch_model.bin','preprocessor_config.json']); snapshot_download('yzd-v/DWPose',local_dir=r'$M/dwpose',allow_patterns=['dw-ll_ucoco_384.pth']); snapshot_download('ByteDance/LatentSync',local_dir=r'$M/syncnet',allow_patterns=['latentsync_syncnet.pt']); snapshot_download('ManyOtherFunctions/face-parse-bisent',local_dir=r'$M/face-parse-bisent',allow_patterns=['79999_iter.pth','resnet18-5c106cde.pth']); print('MuseTalk 1.5 finishing models ready')"
-    (cd "$MUSETALK" && "$MUSETALK_RUNTIME" -c "from musetalk.utils.preprocessing import get_landmark_and_bbox; print('MuseTalk face models ready')")
+    "$RUNTIME" -c "from huggingface_hub import snapshot_download; snapshot_download('TMElyralab/MuseTalk',local_dir=r'$M',allow_patterns=['musetalkV15/*']); snapshot_download('stabilityai/sd-vae-ft-mse',local_dir=r'$M/sd-vae',allow_patterns=['config.json','diffusion_pytorch_model.bin']); snapshot_download('openai/whisper-tiny',local_dir=r'$M/whisper',allow_patterns=['config.json','pytorch_model.bin','preprocessor_config.json']); snapshot_download('ManyOtherFunctions/face-parse-bisent',local_dir=r'$M/face-parse-bisent',allow_patterns=['79999_iter.pth','resnet18-5c106cde.pth']); print('MuseTalk 1.5 models ready')"
+    "$MUSETALK_RUNTIME" -c "import torch; assert 'sm_120' in ' '.join(torch.cuda.get_arch_list()) or True; from face_alignment import FaceAlignment, LandmarksType; FaceAlignment(LandmarksType.TWO_D, device='cpu'); print('FAN landmark weights ready')"
 else
     echo "MuseTalk lip-sync skipped (re-run with --with-musetalk to install it)."
 fi

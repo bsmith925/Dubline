@@ -150,8 +150,9 @@ loginctl enable-linger "$USER"
 journalctl --user -u dubline -f
 ```
 
-The optional MuseTalk lip-sync pass requires `./setup.sh --with-musetalk`; it pins torch 2.0 / CUDA 11.8 and
-therefore cannot run on Blackwell (sm_120) GPUs.
+The optional MuseTalk lip-sync pass requires `./setup.sh --with-musetalk`. Dubline installs it on torch 2.8 / CUDA 12.8
+with `face_alignment` landmarks in place of the upstream mmpose/DWPose stack, so it runs on RTX 50-series GPUs
+(see `deploy/musetalk/`).
 
 ### Windows
 
