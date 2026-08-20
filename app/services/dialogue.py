@@ -194,3 +194,17 @@ def measure_dialogue_leakage(cues: list[dict], dialogue_audio: Path,
             correlation = abs(float(np.dot(left, right) / (np.linalg.norm(left) * np.linalg.norm(right) + 1e-9)))
             level = min(1.0, rms(right) / max(rms(left), 1e-6))
             cue["dialogue_leakage"] = round(correlation * level, 3)
+
+
+FILLER_TOKENS = {
+    "uh", "uhh", "um", "umm", "er", "erm", "ah", "ahh", "oh", "eh", "hmm", "hm", "mm", "mmm", "huh",
+    "mhm", "uh-huh", "uhhuh", "hmmm", "euh", "hein", "ähm", "äh", "ehm", "eto", "etto", "ano", "este",
+    "嗯", "啊", "呃", "あの", "えっと", "えー", "음", "어", "그",
+}
+
+
+def is_nonverbal_filler(text: str) -> bool:
+    """True for a cue that is only hesitation sounds; such lines keep the original performance."""
+    import re
+    tokens = [t for t in re.split(r"[\s,.!?…、。！？]+", str(text).lower()) if t]
+    return bool(tokens) and len(tokens) <= 3 and all(t.strip("-") in FILLER_TOKENS for t in tokens)

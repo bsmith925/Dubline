@@ -68,6 +68,12 @@ def backtranscribe_lines(cues: list[dict], fitted_dir: Path, folder: Path,
         wer = edit_distance(intended_words, heard_words) / max(1, len(intended_words))
         intended_chars = list(intended.replace(" ", "")); heard_chars = list(heard.replace(" ", ""))
         cer = edit_distance(intended_chars, heard_chars) / max(1, len(intended_chars))
+        if cue.get("nonverbal_filler"):
+            # The take is deliberate silence; the source hesitation is what plays.
+            cue.setdefault("qc", {}).update({"backtranscription": "(source performance kept)",
+                                              "word_similarity": 1.0, "wer": 0.0, "cer": 0.0,
+                                              "asr_confidence": 1.0})
+            continue
         cue.setdefault("qc", {}).update({"backtranscription": result["text"],
                                           "word_similarity": round(similarity, 3),
                                           "wer": round(wer, 3), "cer": round(cer, 3),
@@ -131,6 +137,9 @@ def inspect_cues(cues: list[dict], fitted_dir: Path) -> dict:
     for index, cue in enumerate(cues, 1):
         reasons: list[str] = []
         metrics = cue.setdefault("qc", {})
+        if cue.get("nonverbal_filler"):
+            cue["needs_review"] = False; cue["review_reasons"] = []; cue["status"] = "preserved"
+            continue
         required_cue = ("speaker_confidence", "reference_quality", "timing_confidence",
                         "transcription_confidence", "adaptation_confidence", "alignment_confidence")
         required_take = ("stretch_percent", "word_similarity", "wer", "cer", "backtranscription")

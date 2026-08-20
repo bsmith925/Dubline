@@ -349,3 +349,13 @@ def test_language_registry_routes_targets_to_a_capable_engine():
     with pytest.raises(HTTPException):
         normalized_options({"voice_rights_confirmed": True, "target_language": "Klingon"})
     assert normalized_options({"voice_rights_confirmed": True, "target_language": "fr"})["target_language"] == "French"
+
+
+def test_fillers_are_detected_and_drifted_translations_rejected():
+    from app.services.dialogue import is_nonverbal_filler
+    from app.services.adapter_worker import plausible_length
+    assert is_nonverbal_filler("Uh") and is_nonverbal_filler("Um...") and is_nonverbal_filler("えっと")
+    assert not is_nonverbal_filler("But") and not is_nonverbal_filler("Hello and welcome")
+    assert not plausible_length("Uh", "Casey has been trying to do this for a long time")
+    assert plausible_length("Hello and welcome", "Bonjour et bienvenue")
+    assert not plausible_length("A fairly long sentence with many words in it", "Oui")

@@ -127,6 +127,14 @@ def scene_batches(cues: list[dict], size: int = 12) -> list[list[int]]:
     return [list(range(start, min(len(cues), start + size))) for start in range(0, len(cues), size)]
 
 
+def plausible_length(source: str, translation: str) -> bool:
+    """Reject translations whose length is wildly out of proportion to the source."""
+    src = len(re.findall(r"\w+", str(source))); out = len(re.findall(r"\w+", str(translation)))
+    if src == 0 or out == 0:
+        return False
+    return out <= 3 * src + 2 and out >= max(1, src // 4)
+
+
 def faithful_pass(llm, cues: list[dict]) -> None:
     for batch in scene_batches(cues):
         untranslated = [index for index in batch if not cues[index].get("translation_is_target", True)]
@@ -158,6 +166,10 @@ Scene:
             pass
         for index in untranslated:
             translated = answers.get(index)
+            if translated and not plausible_length(cues[index].get("source", ""), translated):
+                # A sentence attached to a two-word line (or the reverse) is content
+                # drifting between neighbouring lines: translate this line on its own.
+                translated = None
             if not translated:
                 single = ask_json(
                     llm, f"Translate to natural {TARGET} only:\n{cues[index].get('source', '')}",

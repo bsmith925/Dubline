@@ -22,7 +22,7 @@ from app.services.languages import iso1, iso2, language as language_info, primar
 from app.services.language_id import FORCE_LANGUAGE_CONFIDENCE, detect_language, same_language
 from app.services.asr import transcribe_aligned
 from app.services.adapter import adapt_dialogue
-from app.services.dialogue import analyze_performance, build_adaptive_dialogue, measure_dialogue_leakage
+from app.services.dialogue import analyze_performance, build_adaptive_dialogue, is_nonverbal_filler, measure_dialogue_leakage
 from app.services.diarization import assign_diarized_speakers, diarize
 from app.services.qc import backtranscribe_lines, evaluate_media_qc, inspect_cues, media_qc, write_report
 from app.services.speakers import analyze_speakers, score_speaker_similarity
@@ -478,6 +478,16 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
             # Workers only know "is this English?"; the job decides the real target.
             if cue.get("source_language"):
                 cue["translation_is_target"] = (str(cue["source_language"]).lower() == target_language.lower())
+            # Hesitations ("uh", "um") are performance, not dialogue: never translated or
+            # re-voiced; the original sound stays in the mix.
+            if is_nonverbal_filler(cue.get("source", "")):
+                cue["nonverbal_filler"] = True
+                cue["translation_is_target"] = True
+                for key in ("english", "adapted_dialogue", "literal_translation", "faithful_translation"):
+                    cue[key] = cue.get("source", "")
+        preserved = sum(1 for cue in cues if cue.get("nonverbal_filler"))
+        if preserved:
+            log(f"{preserved} hesitation line(s) keep the original performance instead of being re-voiced")
         update(34, f"Prepared {len(cues)} {target_language} voice lines", cues=cues, cue_source=cue_source)
         log(f"Dialogue source: {cue_source}")
         checkpoint()
@@ -659,6 +669,17 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
         for index, cue in enumerate(cues):
             checkpoint()
             line_number = index + 1
+            if cue.get("nonverbal_filler"):
+                silent_seconds = max(0.24, float(cue["end"]) - float(cue["start"]))
+                for target_dir in (generated, fitted):
+                    silent = target_dir / f"{line_number:06d}.wav"
+                    if not silent.is_file():
+                        write_silence(silent, silent_seconds)
+                cue["status"] = "preserved"; cue["audio"] = f"{line_number:06d}.wav"
+                cue["qc"] = {"tts_attempts": 0, "raw_duration": 0.0, "stretch_percent": 0.0,
+                             "active_duration": 0.0, "active_fill_percent": 0.0, "padding_ms": 0.0,
+                             "phrase_count": 0, "source_preserved": True}
+                continue
             # Low-confidence diarization must never clone a neighbouring actor.
             # Preserve the tentative cluster for reporting and later full-film
             # reconciliation, but synthesize from this cue's own source voice.
@@ -748,7 +769,8 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
 
         timing_failures = [
             index for index, cue in enumerate(cues)
-            if abs(float(cue.get("qc", {}).get("stretch_percent") or 0.0))
+            if not cue.get("nonverbal_filler")
+            and abs(float(cue.get("qc", {}).get("stretch_percent") or 0.0))
             > (5.0 if cue.get("mouth_visible") else 8.0)
         ]
         if timing_failures:
@@ -805,7 +827,8 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
             )
         word_failures = [
             index for index, cue in enumerate(cues)
-            if float(cue.get("qc", {}).get("word_similarity") or 0.0) < 0.58
+            if not cue.get("nonverbal_filler")
+            and float(cue.get("qc", {}).get("word_similarity") or 0.0) < 0.58
         ]
         if word_failures:
             update(81, f"Regenerating {len(word_failures)} line(s) that failed word QC")
@@ -849,7 +872,8 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
         score_speaker_similarity(cues, fitted, speaker_references)
         fallback_failures = [
             index for index, cue in enumerate(cues)
-            if ((float(cue.get("qc", {}).get("word_similarity") or 0.0) < .8
+            if not cue.get("nonverbal_filler")
+            and ((float(cue.get("qc", {}).get("word_similarity") or 0.0) < .8
                  and int(cue.get("qc", {}).get("tts_attempts", 1)) >= 2)
                 or (float(cue.get("qc", {}).get("speaker_similarity") or 0.0) < .55
                     and float(cue.get("qc", {}).get("active_duration", 0.0)) >= .8))
@@ -1352,6 +1376,13 @@ def fit_audio(source: Path, output: Path, target: float) -> None:
         "-ar", str(SAMPLE_RATE), "-ac", "1", "-c:a", "pcm_s16le", str(output))
 
 
+def write_silence(path: Path, seconds: float, rate: int = 24_000) -> None:
+    import numpy as np
+    import soundfile as sf
+    path.parent.mkdir(parents=True, exist_ok=True)
+    sf.write(path, np.zeros(max(1, round(seconds * rate)), dtype=np.float32), rate, subtype="PCM_16")
+
+
 def render_timeline(cues: list[dict], fitted_dir: Path, output: Path, duration: float,
                     nonverbal_source: Path | None = None) -> None:
     import numpy as np
@@ -1384,6 +1415,8 @@ def render_timeline(cues: list[dict], fitted_dir: Path, output: Path, duration: 
             if cue.get("overlapping_speech"):
                 cue["overlap_source_preserved"] = True
                 continue
+            if cue.get("nonverbal_filler"):
+                continue  # the original hesitation stays audible; its take is silence
             spans = [(float(word["start"]), float(word["end"])) for word in cue.get("words", [])
                      if word.get("start") is not None and word.get("end") is not None]
             if not spans:
