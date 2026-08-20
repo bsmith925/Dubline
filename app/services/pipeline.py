@@ -1407,7 +1407,7 @@ def match_acoustics(cues: list[dict], fitted_dir: Path, output_dir: Path,
         if reflection_decay >= .018:
             delay = int(np.clip(16 + tail_ratio * 42, 18, 58))
             filters.append(f"aecho=0.8:0.10:{delay}:{reflection_decay:.3f}")
-        filters += ["alimiter=limit=0.94", "volume=0.98"]
+        filters += ["alimiter=limit=0.94:level=0", "volume=0.98"]
         run("ffmpeg", "-y", "-v", "error", "-i", str(source), "-af", ",".join(filters),
             "-ar", str(SAMPLE_RATE), "-ac", "1", "-c:a", "pcm_s16le", str(output))
         values, rate = sf.read(output, dtype="float32", always_2d=True)
@@ -1450,14 +1450,14 @@ def mix_audio(source: Path, voice: Path, output: Path, duration: float, mode: st
             graph = (
                 f"[0:a]aresample=48000[bed];[1:a]aresample=48000,{voice_pan},"
                 "volume=1.05[voice];[bed][voice]amix=inputs=2:duration=longest:dropout_transition=0,"
-                "alimiter=limit=0.95[mix]"
+                "alimiter=limit=0.95:level=0[mix]"
             )
         else:
             graph = (
                 "[0:a]aresample=48000[bed];"
                 "[1:a]aresample=48000,volume=1.05,asplit=2[voice][key];"
                 "[bed][key]sidechaincompress=threshold=0.02:ratio=2:attack=12:release=220[ducked];"
-                "[ducked][voice]amix=inputs=2:duration=longest:dropout_transition=0,alimiter=limit=0.95[mix]"
+                "[ducked][voice]amix=inputs=2:duration=longest:dropout_transition=0,alimiter=limit=0.95:level=0[mix]"
             )
     else:
         bed_source = source
@@ -1465,7 +1465,7 @@ def mix_audio(source: Path, voice: Path, output: Path, duration: float, mode: st
             "[0:a]aresample=48000,volume=0.48[bed];"
             "[1:a]aresample=48000,volume=1.15,asplit=2[voice][key];"
             "[bed][key]sidechaincompress=threshold=0.012:ratio=10:attack=12:release=320[ducked];"
-            "[ducked][voice]amix=inputs=2:duration=longest:dropout_transition=0,alimiter=limit=0.95[mix]"
+            "[ducked][voice]amix=inputs=2:duration=longest:dropout_transition=0,alimiter=limit=0.95:level=0[mix]"
         )
     run("ffmpeg", "-y", "-v", "error", "-i", str(bed_source), "-i", str(voice), "-filter_complex", graph,
         "-map", "[mix]", "-t", f"{duration:.3f}", "-ar", "48000", "-c:a", "flac", "-sample_fmt", "s32", str(premaster))
@@ -1494,17 +1494,17 @@ def master_audio(premaster: Path, output: Path, dialogue: Path, preset: str) -> 
         premaster.unlink(missing_ok=True)
         return {"preset": "preserve", "target": None, "dialogue_lufs": measured_lufs(dialogue)}
     if preset == "broadcast":
-        audio_filter = "loudnorm=I=-23:TP=-1:LRA=18,alimiter=limit=0.891"
+        audio_filter = "loudnorm=I=-23:TP=-1:LRA=18,alimiter=limit=0.891:level=0"
         result = {"preset": "EBU broadcast", "target_lufs": -23.0, "true_peak_target_dbtp": -1.0}
     elif preset == "web":
-        audio_filter = "loudnorm=I=-16:TP=-1:LRA=11,alimiter=limit=0.891"
+        audio_filter = "loudnorm=I=-16:TP=-1:LRA=11,alimiter=limit=0.891:level=0"
         result = {"preset": "web", "target_lufs": -16.0, "true_peak_target_dbtp": -1.0}
     else:
         # Cinema/localization preset: set program gain from dialogue-gated content,
         # then protect the full program at -2 dBTP.
         dialogue_lufs = measured_lufs(dialogue)
         gain = float(__import__('numpy').clip(-27.0 - (dialogue_lufs if dialogue_lufs is not None else -27.0), -12, 12))
-        audio_filter = f"volume={gain:.3f}dB,alimiter=limit=0.794"
+        audio_filter = f"volume={gain:.3f}dB,alimiter=limit=0.794:level=0"
         result = {"preset": "cinema dialogue-gated", "target_dialogue_lufs": -27.0,
                   "measured_dialogue_lufs": dialogue_lufs,
                   "dialogue_lufs_after_gain": round((dialogue_lufs or -27.0) + gain, 2),

@@ -67,6 +67,9 @@ def grouped_cues(items, language: str, offset: float, window_index: int,
             "adapted_dialogue": text, "words": words,
             "source_language": language, "translation_is_target": language == "English",
             "transcription_confidence": round(.55 + .35 * alignment_confidence, 3),
+            # Word boundaries come straight from the forced aligner, so timing
+            # evidence tracks alignment validity (same scale as the subtitle path).
+            "timing_confidence": round(.55 + .45 * alignment_confidence, 3),
             "alignment_confidence": round(alignment_confidence, 3),
             "confidence_source": "forced-alignment validity",
             "asr_engine": engine, "asr_window": window_index,

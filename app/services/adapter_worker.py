@@ -139,6 +139,15 @@ def scene_batches(cues: list[dict], size: int = 12) -> list[list[int]]:
     return [list(range(start, min(len(cues), start + size))) for start in range(0, len(cues), size)]
 
 
+def echo_matches(source: str, echo: str) -> bool:
+    """Confirm a batch answer refers to the line it claims (guards against key drift)."""
+    normalize = lambda text: re.sub(r"[^\w]+", " ", str(text).lower()).split()
+    expected, seen = normalize(source)[:4], normalize(echo)[:4]
+    if not expected or not seen:
+        return False
+    return difflib.SequenceMatcher(None, " ".join(expected), " ".join(seen)).ratio() >= 0.6
+
+
 def faithful_pass(llm, cues: list[dict]) -> None:
     for batch in scene_batches(cues):
         untranslated = [index for index in batch if not cues[index].get("translation_is_target", True)]
@@ -154,12 +163,27 @@ def faithful_pass(llm, cues: list[dict]) -> None:
         prompt = f"""Translate this complete film scene faithfully into idiomatic English.
 Maintain names, terminology, facts, register, jokes, relationships and continuity across lines.
 Do not shorten for timing and never romanize instead of translating.
-Return only a JSON object mapping these requested line numbers to English strings: {wanted}
+Translate each requested line separately; never merge or split lines.
+Return only a JSON array with one object per requested line number ({wanted}), in this exact shape:
+[{{"line": <number>, "source_start": "<the first four words of that source line, copied exactly>", "english": "<translation>"}}]
 Scene:
 {numbered}"""
-        value = json_value(ask(llm, prompt)) or {}
+        value = json_value(ask(llm, prompt, 1800))
+        answers: dict[int, str] = {}
+        if isinstance(value, list):
+            for item in value:
+                if not isinstance(item, dict):
+                    continue
+                try:
+                    index = int(item.get("line"))
+                except (TypeError, ValueError):
+                    continue
+                if index in untranslated and echo_matches(cues[index].get("source", ""), item.get("source_start", "")):
+                    answers[index] = str(item.get("english") or "")
+        elif isinstance(value, dict):  # tolerate the older {"7": "..."} shape
+            answers = {int(k): str(v) for k, v in value.items() if str(k).isdigit() and int(k) in untranslated}
         for index in untranslated:
-            translated = value.get(str(index)) if isinstance(value, dict) else None
+            translated = answers.get(index)
             if not translated:
                 translated = ask(llm, f"Translate to natural English only:\n{cues[index].get('source', '')}", 180)
             translated = " ".join(str(translated).strip().strip('"').split())

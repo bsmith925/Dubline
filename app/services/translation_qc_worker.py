@@ -86,6 +86,18 @@ Pass only when adequacy >= 0.78, names >= 0.85, and no material omission/additio
 {lines}"""
         values = parse_json(ask(llm, prompt))
         valid = {int(item.get("id", -1)): item for item in values if isinstance(item, dict)}
+        # Re-ask one line at a time for anything the batch failed to cover, so a
+        # single malformed answer cannot fail every line around it.
+        for cue in batch:
+            if int(cue["id"]) in valid:
+                continue
+            single_lines = (f"ID {cue['id']}\nSOURCE ({cue.get('source_language') or 'auto'}): {cue.get('source','')}\n"
+                            f"FAITHFUL ENGLISH: {cue.get('faithful_translation') or cue.get('literal_translation','')}\n"
+                            f"DUB ENGLISH: {cue.get('english','')}")
+            retry = parse_json(ask(llm, prompt.replace(lines, single_lines), max_tokens=600))
+            for item in retry:
+                if isinstance(item, dict) and int(item.get("id", -1)) == int(cue["id"]):
+                    valid[int(cue["id"])] = item
         for cue in batch:
             item = valid.get(int(cue["id"]))
             if not item:
