@@ -328,7 +328,7 @@ def test_delivery_copies_into_the_configured_root_only(tmp_path: Path, monkeypat
     target = deliver_outputs(job, folder / "dubbed-english.mkv", folder / "qc-report.html",
                              {"srt": str(folder / "dub.srt")})
     assert target == (tmp_path / "out" / "client-choice").resolve()
-    assert sorted(p.name for p in target.iterdir()) == ["Film.english.dub.mkv", "Film.qc.html", "dub.srt"]
+    assert sorted(p.name for p in target.iterdir()) == ["Film.english.dub.mkv", "Film.english.srt", "Film.qc.html"]
     assert delivery_subdir("films/one") == "films/one"
     with pytest.raises(HTTPException):
         delivery_subdir("../escape")

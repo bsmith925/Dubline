@@ -1602,17 +1602,22 @@ def deliver_outputs(job: dict, output: Path, report_html: Path, exports: dict) -
     if root is None:
         return None
     stem = Path(str(job.get("filename", "dub"))).stem
+    lang = str(job.get("options", {}).get("target_language", "English")).lower()
     target = (root / (job.get("options", {}).get("delivery_dir") or stem)).resolve()
     if root.resolve() not in target.parents and target != root.resolve():
         raise RuntimeError("Delivery folder escapes the configured delivery root")
     target.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(output, target / f"{stem}.{str(job.get('options', {}).get('target_language', 'English')).lower()}.dub.mkv")
+    shutil.copy2(output, target / f"{stem}.{lang}.dub.mkv")
     if report_html.is_file():
         shutil.copy2(report_html, target / f"{stem}.qc.html")
+    # Job-folder names are fixed for resume/invalidation; delivered names say what they are.
+    delivered_names = {"dialogue": f"{stem}.{lang}.dialogue.flac", "mix": f"{stem}.{lang}.mix.flac",
+                       "srt": f"{stem}.{lang}.srt", "csv": f"{stem}.cues.csv", "edl": f"{stem}.cues.edl",
+                       "clips": f"{stem}.{lang}.clips.zip"}
     for kind, path in (exports or {}).items():
         source = Path(str(path))
         if source.is_file():
-            shutil.copy2(source, target / source.name)
+            shutil.copy2(source, target / delivered_names.get(kind, source.name))
     return target
 
 

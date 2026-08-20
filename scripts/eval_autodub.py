@@ -253,7 +253,7 @@ def evaluate(url: str, args, client: Client) -> dict:
     if job["status"] in {"complete", "needs_review"} and not args.no_download:
         client.download(f"/api/jobs/{job['id']}/download", out_dir / "dubbed-english.mkv")
         try:
-            client.download(f"/api/jobs/{job['id']}/export/dialogue", out_dir / "english-dialogue.flac")
+            client.download(f"/api/jobs/{job['id']}/export/dialogue", out_dir / "dialogue.flac")
         except Exception:
             pass
         if original_audio:
