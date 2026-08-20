@@ -17,6 +17,7 @@ $Runtime = Join-Path $Upstream ".venv\Scripts\python.exe"
 python -m uv pip install --python $Runtime -r (Join-Path $ProjectRoot "requirements.txt")
 python -m uv pip install --python $Runtime llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
 python -m uv pip install --python $Runtime hf_xet melband-roformer-infer==0.1.5 "numpy==2.2.6" "opencv-python==4.12.0.88"
+& $Runtime -c "from huggingface_hub import snapshot_download; snapshot_download('IndexTeam/IndexTTS-2.5', local_dir=r'$Upstream\checkpoints'); print('IndexTTS-2.5 checkpoints ready')"
 & $Runtime -c "from indextts.utils.model_download import ensure_models_available; ensure_models_available(r'$Upstream\checkpoints')"
 $Bandit = Join-Path $ProjectRoot "vendor\bandit-v2"
 if (-not (Test-Path -LiteralPath (Join-Path $Bandit "src\models\bandit\bandit.py"))) {

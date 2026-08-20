@@ -1,0 +1,28 @@
+# systemd user unit for the Dubline server.
+#
+#   mkdir -p ~/.config/systemd/user
+#   cp deploy/dubline.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now dubline
+#   loginctl enable-linger $USER      # keep it running after logout
+#   journalctl --user -u dubline -f   # logs
+#
+# Adjust WorkingDirectory if the repo lives somewhere other than ~/Dubline.
+[Unit]
+Description=Dubline local film-dubbing server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Dubline
+ExecStart=%h/Dubline/run.sh
+Restart=on-failure
+RestartSec=10
+# The pipeline can hold large models in RAM between CUDA stages.
+OOMScoreAdjust=-200
+KillMode=mixed
+TimeoutStopSec=60
+
+[Install]
+WantedBy=default.target

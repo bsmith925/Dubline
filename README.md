@@ -116,7 +116,7 @@ Select the target loudness standard for the delivered English audio track:
 
 ## System Requirements
 
-- **Operating System:** Windows 10/11 (64-bit) or Linux
+- **Operating System:** Linux (Ubuntu 22.04/24.04 tested) or Windows 10/11 (64-bit)
 - **GPU:** NVIDIA GPU with CUDA support (8 GB VRAM minimum; 12 GB+ recommended)
 - **CPU:** 6+ cores / 12+ threads recommended
 - **RAM:** 16 GB minimum (32 GB recommended)
@@ -127,28 +127,61 @@ Select the target loudness standard for the delivered English audio track:
 
 ## Quick Start
 
-### 1. Installation
+### Linux (e.g. a headless GPU server)
 
-Clone the repository and run the automated setup script to configure virtual environments and download required models:
-
-```powershell
-# Clone the repository
+```bash
 git clone https://github.com/leighrobertabbott/Dubline.git
 cd Dubline
-
-# Run setup (installs dependencies and model weights)
-.\setup.ps1
+cp .env.example .env            # optional: set DUB_WORKDIR to a big, fast disk; add HF_TOKEN
+./setup.sh                      # clones IndexTTS v2.5, builds CUDA llama.cpp, downloads ~45 GB of models
+./run.sh                        # serves on http://0.0.0.0:8000 (DUB_HOST / DUB_PORT to change)
 ```
 
-### 2. Launch the Application
+Requirements: NVIDIA driver + CUDA toolkit ≥ 12.8 at `/usr/local/cuda` (needed to build `llama-cpp-python`
+with GPU offload; Blackwell cards such as the RTX 5090 need 12.8+), `git`, `curl`, and an FFmpeg build with
+`librubberband`. `uv` and Python 3.11 are installed automatically. Every PyTorch runtime uses `torch 2.8 / cu128`.
 
-Start the local server and web interface:
+To keep the server running as a service:
+
+```bash
+cp deploy/dubline.service ~/.config/systemd/user/   # edit WorkingDirectory if not ~/Dubline
+systemctl --user daemon-reload && systemctl --user enable --now dubline
+loginctl enable-linger "$USER"
+journalctl --user -u dubline -f
+```
+
+The optional MuseTalk lip-sync pass requires `./setup.sh --with-musetalk`; it pins torch 2.0 / CUDA 11.8 and
+therefore cannot run on Blackwell (sm_120) GPUs.
+
+### Windows
 
 ```powershell
+git clone https://github.com/leighrobertabbott/Dubline.git
+cd Dubline
+git clone --branch v2.5.0 https://github.com/index-tts/index-tts.git vendor\index-tts
+.\setup.ps1
 .\run.ps1
 ```
 
 Open your browser at **`http://127.0.0.1:8000`**.
+
+### Sending a video to a remote Dubline server
+
+`scripts/dubline_send.py` is a standard-library-only client: it creates a job, streams the file in resumable
+16 MiB chunks, answers the audio/subtitle-track question, waits for the dub, and downloads the MKV + QC report.
+
+```bash
+# from any machine that can reach the server
+python scripts/dubline_send.py --server http://isengard:8000 film.mkv film.srt --out ./dubs
+python scripts/dubline_send.py --server http://isengard:8000 film.mkv --start 20:20 --end 22:00 --preset web
+python scripts/dubline_send.py --server http://isengard:8000 --remote-path /mnt/media/film.mkv   # file already on the server
+python scripts/dubline_send.py --server http://isengard:8000 --status                            # health + job list
+python scripts/dubline_send.py --server http://isengard:8000 --job <id> --wait --exports srt,mix   # reattach later
+```
+
+`DUBLINE_SERVER` can be set instead of `--server`. The web UI at the same address works remotely too.
+The server has no authentication — keep it on a trusted LAN or behind a VPN/SSH tunnel
+(`ssh -L 8000:localhost:8000 isengard`).
 
 ---
 
@@ -160,6 +193,8 @@ Dubline can be configured via environment variables or by creating a `.env` file
 | :--- | :--- | :--- |
 | `DUB_ENGINE` | `indextts` | Primary TTS engine (`indextts` or `qwen-tts`) |
 | `DUB_WORKDIR` | `./data` | Working directory for job stems and temporary files |
+| `DUB_HOST` / `DUB_PORT` | `0.0.0.0` / `8000` | Bind address for `run.sh` |
+| `*_RUNTIME` | auto | Interpreter of each isolated venv; auto-resolves `bin/python` or `Scripts\python.exe` |
 | `DUB_DIARIZATION_DEVICE` | `cuda` | Hardware device for diarization (`cuda` or `cpu`) |
 | `DUB_LLAMA_GPU_LAYERS` | `-1` | Number of GPU layers for LLM adaptation (`-1` = full offload) |
 | `BANDIT_CHECKPOINT` | `./vendor/...` | Path to Bandit v2 separation checkpoint |
