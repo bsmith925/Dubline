@@ -28,9 +28,14 @@ def main() -> None:
     for position, item in enumerate(spec["items"]):
         raw = Path(item["raw"]); fitted = Path(item["fitted"])
         raw.parent.mkdir(parents=True, exist_ok=True); fitted.parent.mkdir(parents=True, exist_ok=True)
+        reference_text = str(item.get("reference_text") or "").strip()
+        # In-context cloning (reference audio + its transcript) reproduces the
+        # speaker far better than the speaker-embedding-only mode; fall back to
+        # x-vector mode only when no transcript is available for the reference.
         wavs, sample_rate = model.generate_voice_clone(
             text=item["text"], language=item.get("language", "English"),
-            ref_audio=item["reference"], x_vector_only_mode=True,
+            ref_audio=item["reference"], ref_text=reference_text or None,
+            x_vector_only_mode=not reference_text,
         )
         sf.write(raw, wavs[0], sample_rate)
         raw_duration = len(wavs[0]) / float(sample_rate)

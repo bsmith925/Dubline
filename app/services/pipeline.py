@@ -664,12 +664,24 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
             # reconciliation, but synthesize from this cue's own source voice.
             reference = (speaker_references.get(int(cue.get("speaker_id", 0)))
                          if float(cue.get("speaker_confidence", 0.0)) >= 0.62 else None)
+            reference_text = ""
             if reference is None:
                 reference = fallback_refs / f"{line_number:06d}.wav"
+                reference_text = str(cue.get("source", "")).strip()
+            elif reference.with_suffix(".txt").is_file():
+                reference_text = reference.with_suffix(".txt").read_text(encoding="utf-8").strip()
             raw_line = generated / f"{line_number:06d}.wav"
             fitted_line = fitted / f"{line_number:06d}.wav"
             emotion_reference = emotion_refs / f"{line_number:06d}.wav"
-            target = max(0.24, float(cue["end"]) - float(cue["start"]))
+            cue_seconds = max(0.24, float(cue["end"]) - float(cue["start"]))
+            # Let a take spill into the silence before the next line instead of
+            # time-compressing it: generously when the mouth is off-screen,
+            # barely when it is visible. Placement never overlaps the next cue.
+            next_start = float(cues[index + 1]["start"]) if index + 1 < len(cues) else float("inf")
+            gap = max(0.0, next_start - float(cue["end"]) - 0.15)
+            slack_cap = cue_seconds * (0.12 if cue.get("mouth_visible") else 0.45)
+            target = cue_seconds + min(gap, slack_cap)
+            cue["target_seconds"] = round(target, 3)
             if not reference.exists():
                 make_reference(reference_audio, cue, reference, duration)
             source_performance_ok = (
@@ -683,8 +695,8 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
             spoken_text = apply_glossary(cue["english"])
             cue["spoken_text"] = spoken_text
             tts_items.append({
-                "text": spoken_text, "reference": str(reference), "raw": str(raw_line),
-                "fitted": str(fitted_line), "target": target,
+                "text": spoken_text, "reference": str(reference), "reference_text": reference_text,
+                "raw": str(raw_line), "fitted": str(fitted_line), "target": target,
                 "emotion_vector": None if source_performance_ok else cue.get("emotion_vector"),
                 "emotion_strength": 0.6 if emotion_mode == "auto" else 0.82,
                 "emotion_audio": str(emotion_reference) if source_performance_ok else None,

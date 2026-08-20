@@ -151,6 +151,7 @@ def build_reference_bank(dialogue_audio: Path, cues: list[dict], output_dir: Pat
         rate = reader.samplerate
         for speaker_id, candidates in groups.items():
             parts = []
+            texts: list[str] = []
             seconds = 0.0
             for _, _, cue in sorted(candidates, reverse=True):
                 start = max(0, round((float(cue["start"]) - 0.1) * rate))
@@ -162,6 +163,7 @@ def build_reference_bank(dialogue_audio: Path, cues: list[dict], output_dir: Pat
                 if len(samples) < rate * 0.4:
                     continue
                 parts.append(samples)
+                texts.append(str(cue.get("source", "")).strip())
                 seconds += len(samples) / rate
                 if seconds >= 8.0:
                     break
@@ -175,6 +177,9 @@ def build_reference_bank(dialogue_audio: Path, cues: list[dict], output_dir: Pat
             montage = np.clip(montage * gain, -0.95, 0.95)
             path = output_dir / f"voice-{speaker_id:03d}.wav"
             sf.write(path, montage, rate, subtype="PCM_16")
+            # What the montage says, in order: lets in-context voice cloning
+            # (Qwen3-TTS ICL mode) see transcript + audio instead of a bare x-vector.
+            path.with_suffix(".txt").write_text(" ".join(t for t in texts if t), encoding="utf-8")
             references[speaker_id] = path
     return references
 
