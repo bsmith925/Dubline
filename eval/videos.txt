@@ -1,0 +1,3 @@
+# English-original videos that have YouTube auto-dub tracks (one URL per line).
+# Run: python scripts/eval_autodub.py --server http://isengard:8000 --list eval/videos.txt --dub-language es --start 0:00 --end 1:30
+https://www.youtube.com/watch?v=ZLxazlP7Ppo
