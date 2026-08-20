@@ -711,15 +711,20 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
             update(44 + value * 36, f"Voicing line {completed_index + 1} of {total}",
                    current_cue=completed_index + 1)
 
-        if voice_engine == "qwen-tts":
-            with gpu_stage(folder, "Qwen3-TTS primary synthesis", checkpoint):
-                if not synthesize_qwen_fallback(tts_items, folder, voice_progress, checkpoint):
-                    raise RuntimeError("Qwen3-TTS runtime or model is missing; it is required for "
-                                       f"{target_language} synthesis")
-        else:
-            with gpu_stage(folder, "IndexTTS primary synthesis", checkpoint):
-                synthesize_voice_lines({"engine": options.get("engine", "indextts"), "items": tts_items},
-                                       folder, voice_progress, checkpoint)
+        engine_label = "Qwen3-TTS" if voice_engine == "qwen-tts" else "IndexTTS"
+
+        def synthesize(items: list[dict], stage_name: str, progress: Callable[[dict], None]) -> None:
+            """Voice ``items`` with the engine chosen for the target language (all passes)."""
+            with gpu_stage(folder, f"{engine_label} {stage_name}", checkpoint):
+                if voice_engine == "qwen-tts":
+                    if not synthesize_qwen_fallback(items, folder, progress, checkpoint):
+                        raise RuntimeError("Qwen3-TTS runtime or model is missing; it is required for "
+                                           f"{target_language} synthesis")
+                else:
+                    synthesize_voice_lines({"engine": options.get("engine", "indextts"), "items": items},
+                                           folder, progress, checkpoint)
+
+        synthesize(tts_items, "primary synthesis", voice_progress)
         persist_cues(force=True)
 
         timing_failures = [
@@ -768,9 +773,7 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                        f"Resynthesizing corrected line {cue_index + 1} of {total}",
                        current_cue=cue_index + 1)
 
-            with gpu_stage(folder, "IndexTTS timing retries", checkpoint):
-                synthesize_voice_lines({"engine": options.get("engine", "indextts"), "items": retry_items},
-                                       folder, retry_progress, checkpoint)
+            synthesize(retry_items, "timing retries", retry_progress)
             persist_cues(force=True)
 
         update(80.9, "Checking generated words against the intended dialogue")
@@ -813,9 +816,7 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                        f"Regenerating word mismatch · line {cue_index + 1}",
                        current_cue=cue_index + 1)
 
-            with gpu_stage(folder, "IndexTTS intelligibility retries", checkpoint):
-                synthesize_voice_lines({"engine": options.get("engine", "indextts"), "items": word_retry_items},
-                                       folder, word_retry_progress, checkpoint)
+            synthesize(word_retry_items, "intelligibility retries", word_retry_progress)
             persist_cues(force=True)
             with gpu_stage(folder, "Whisper retry QC", checkpoint):
                 backtranscribe_lines(

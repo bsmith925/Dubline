@@ -204,7 +204,9 @@ def synthesize_qwen_fallback(items: list[dict], folder: Path,
     if not items or not runtime.is_file() or not (model / "model.safetensors").is_file():
         return False
     manifest = folder / "qwen-tts-manifest.json"
-    manifest.write_text(json.dumps({"model": str(model), "items": items},
+    results = folder / "qwen-tts-results.json"
+    results.unlink(missing_ok=True)
+    manifest.write_text(json.dumps({"model": str(model), "items": items, "results": str(results)},
                                    ensure_ascii=False, indent=2), encoding="utf-8")
     process = subprocess.Popen(
         [str(runtime), "-m", "app.services.qwen_tts_worker", "--manifest", str(manifest)],
@@ -212,14 +214,15 @@ def synthesize_qwen_fallback(items: list[dict], folder: Path,
         errors="replace", bufsize=1,
     )
     tail = []
+    reported: set[int] = set()
     try:
         for line in controlled_lines(process, checkpoint):
             tail.append(line.rstrip()); tail = tail[-20:]
             try:
                 event = json.loads(line)
                 if "progress" in event:
-                    progress(event)
-            except (json.JSONDecodeError, KeyError, ValueError):
+                    reported.add(int(event["cue_index"])); progress(event)
+            except (json.JSONDecodeError, KeyError, ValueError, TypeError):
                 pass
         code = process.wait()
     except BaseException:
@@ -227,4 +230,13 @@ def synthesize_qwen_fallback(items: list[dict], folder: Path,
         raise
     if code != 0:
         raise RuntimeError("Qwen3-TTS fallback failed: " + "\n".join(tail[-10:]))
+    # Authoritative per-line metrics: anything stdout parsing missed is replayed here.
+    if results.is_file():
+        for event in json.loads(results.read_text(encoding="utf-8")):
+            if int(event.get("cue_index", -1)) not in reported:
+                progress(event)
+    missing = [item["cue_index"] for item in items if int(item["cue_index"]) not in
+               {int(e.get("cue_index", -1)) for e in (json.loads(results.read_text(encoding="utf-8")) if results.is_file() else [])}]
+    if missing:
+        raise RuntimeError(f"Qwen3-TTS produced no take for {len(missing)} line(s): {missing[:8]}")
     return True

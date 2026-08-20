@@ -23,6 +23,8 @@ def main() -> None:
         spec["model"], device_map="cuda:0", dtype=torch.bfloat16,
         attn_implementation="sdpa",
     )
+    results_path = Path(spec["results"]) if spec.get("results") else None
+    events: list[dict] = []
     for position, item in enumerate(spec["items"]):
         raw = Path(item["raw"]); fitted = Path(item["fitted"])
         raw.parent.mkdir(parents=True, exist_ok=True); fitted.parent.mkdir(parents=True, exist_ok=True)
@@ -31,9 +33,19 @@ def main() -> None:
             ref_audio=item["reference"], x_vector_only_mode=True,
         )
         sf.write(raw, wavs[0], sample_rate)
+        raw_duration = len(wavs[0]) / float(sample_rate)
         metrics = fit_audio(raw, fitted, float(item["target"]))
-        print(json.dumps({"progress": (position + 1) / max(1, len(spec["items"])),
-                          "cue_index": item["cue_index"], **metrics}), flush=True)
+        event = {"progress": (position + 1) / max(1, len(spec["items"])),
+                 "cue_index": item["cue_index"], "raw_duration": round(raw_duration, 4),
+                 "attempts": 1, **metrics}
+        events.append(event)
+        # The model library writes progress bars to the same stream, so stdout is
+        # only a hint; the results file is the record the parent relies on.
+        print("\n" + json.dumps(event), flush=True)
+        if results_path is not None:
+            temporary = results_path.with_suffix(".tmp")
+            temporary.write_text(json.dumps(events), encoding="utf-8")
+            temporary.replace(results_path)
         # This worker runs in a foreign venv without pydantic; app.config exports the value.
         time.sleep(max(0.0, float(os.getenv("DUB_GPU_LINE_COOLDOWN_SECONDS", ".45"))))
     os._exit(0)
