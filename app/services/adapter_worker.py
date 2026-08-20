@@ -10,6 +10,7 @@ import re
 from pathlib import Path
 
 from app.config import settings
+from app.services.llm_json import StructuredOutputError, array_of, ask_json, number
 
 
 def predicted_seconds(text: str) -> float:
@@ -24,25 +25,6 @@ def hard_line(cue: dict) -> bool:
     ratio = predicted_seconds(cue.get("faithful_translation") or cue.get("literal_translation")
                               or cue.get("english", "")) / target
     return bool(cue.get("force_adaptation")) or ratio > 1.06 or not cue.get("translation_was_supplied", True)
-
-
-def json_value(content: str):
-    try:
-        return json.loads(content)
-    except json.JSONDecodeError:
-        array = re.search(r"\[[\s\S]*\]", content)
-        if array:
-            return json.loads(array.group(0))
-        obj = re.search(r"\{[\s\S]*\}", content)
-        return json.loads(obj.group(0)) if obj else None
-
-
-def parse_candidates(content: str) -> list[str]:
-    value = json_value(content) or {}
-    names = ("natural", "shorter", "lip_compatible", "rhythmic", "literal_short", "idiomatic_short")
-    return list(dict.fromkeys(" ".join(value[name].split()) for name in names
-            if isinstance(value.get(name), str) and value[name].strip()
-            and value[name].strip().lower() not in {"true", "false", "null"}))
 
 
 def protected_names(text: str) -> set[str]:
@@ -117,38 +99,31 @@ def judge_candidates(llm, cue: dict, faithful: str, candidates: list[str]) -> li
     values = list(dict.fromkeys([faithful, *candidates]))
     numbered = "\n".join(f"{i}: {value}" for i, value in enumerate(values))
     prompt = f"""Judge {TARGET} dubbing candidates against the source and faithful translation.
-Return only a JSON array with one object per candidate:
-{{"index":0,"adequacy":0.0,"terminology":0.0,"register":0.0}}
-Scores are 0 to 1. Adequacy means all meaning and facts are preserved. Penalize additions,
-omissions, wrong names and changed intent. Terminology covers names and scene terms. Register
-covers tone and relationship. Do not prefer brevity by itself.
+Score every candidate index from 0 to {len(values) - 1}. Scores are 0 to 1. Adequacy means all meaning and
+facts are preserved. Penalize additions, omissions, wrong names and changed intent. Terminology covers names
+and scene terms. Register covers tone and relationship. Do not prefer brevity by itself.
 Source: {cue.get('source', '')}
 Faithful {TARGET}: {faithful}
 Candidates:
 {numbered}"""
-    value = json_value(ask(llm, prompt, 420))
-    return value if isinstance(value, list) else []
-
-
-def ask(llm, prompt: str, max_tokens: int = 900) -> str:
-    response = llm.create_chat_completion(
-        messages=[{"role": "user", "content": prompt}], temperature=0.05, top_p=0.9,
-        max_tokens=max_tokens,
-    )
-    return str(response["choices"][0]["message"]["content"])
+    schema = array_of({
+        "type": "object",
+        "properties": {"index": {"type": "integer", "enum": list(range(len(values)))},
+                       "adequacy": {"type": "number"}, "terminology": {"type": "number"},
+                       "register": {"type": "number"}},
+        "required": ["index", "adequacy", "terminology", "register"],
+    }, "scores", min_items=len(values), max_items=len(values))
+    try:
+        scored = ask_json(llm, prompt, schema, max_tokens=60 + 40 * len(values))["scores"]
+    except StructuredOutputError:
+        return []
+    return [{"index": int(item["index"]), "adequacy": number(item.get("adequacy")),
+             "terminology": number(item.get("terminology")), "register": number(item.get("register"))}
+            for item in scored]
 
 
 def scene_batches(cues: list[dict], size: int = 12) -> list[list[int]]:
     return [list(range(start, min(len(cues), start + size))) for start in range(0, len(cues), size)]
-
-
-def echo_matches(source: str, echo: str) -> bool:
-    """Confirm a batch answer refers to the line it claims (guards against key drift)."""
-    normalize = lambda text: re.sub(r"[^\w]+", " ", str(text).lower()).split()
-    expected, seen = normalize(source)[:4], normalize(echo)[:4]
-    if not expected or not seen:
-        return False
-    return difflib.SequenceMatcher(None, " ".join(expected), " ".join(seen)).ratio() >= 0.6
 
 
 def faithful_pass(llm, cues: list[dict]) -> None:
@@ -166,29 +141,28 @@ def faithful_pass(llm, cues: list[dict]) -> None:
         prompt = f"""Translate this complete film scene faithfully into idiomatic {TARGET}.
 Maintain names, terminology, facts, register, jokes, relationships and continuity across lines.
 Do not shorten for timing and never romanize instead of translating.
-Translate each requested line separately; never merge or split lines.
-Return only a JSON array with one object per requested line number ({wanted}), in this exact shape:
-[{{"line": <number>, "source_start": "<the first four words of that source line, copied exactly>", "english": "<translation>"}}]
+Translate each requested line separately; never merge or split lines. Requested lines: {wanted}
 Scene:
 {numbered}"""
-        value = json_value(ask(llm, prompt, 1800))
+        schema = array_of({
+            "type": "object",
+            "properties": {"line": {"type": "integer", "enum": untranslated}, "translation": {"type": "string"}},
+            "required": ["line", "translation"],
+        }, "lines", min_items=len(untranslated), max_items=len(untranslated))
         answers: dict[int, str] = {}
-        if isinstance(value, list):
-            for item in value:
-                if not isinstance(item, dict):
-                    continue
-                try:
-                    index = int(item.get("line"))
-                except (TypeError, ValueError):
-                    continue
-                if index in untranslated and echo_matches(cues[index].get("source", ""), item.get("source_start", "")):
-                    answers[index] = str(item.get("english") or "")
-        elif isinstance(value, dict):  # tolerate the older {"7": "..."} shape
-            answers = {int(k): str(v) for k, v in value.items() if str(k).isdigit() and int(k) in untranslated}
+        try:
+            for item in ask_json(llm, prompt, schema, max_tokens=200 + 120 * len(untranslated))["lines"]:
+                answers.setdefault(int(item["line"]), str(item.get("translation") or ""))
+        except StructuredOutputError:
+            pass
         for index in untranslated:
             translated = answers.get(index)
             if not translated:
-                translated = ask(llm, f"Translate to natural {TARGET} only:\n{cues[index].get('source', '')}", 180)
+                single = ask_json(
+                    llm, f"Translate to natural {TARGET} only:\n{cues[index].get('source', '')}",
+                    {"type": "object", "properties": {"translation": {"type": "string"}}, "required": ["translation"]},
+                    max_tokens=200)
+                translated = str(single.get("translation") or "")
             translated = " ".join(str(translated).strip().strip('"').split())
             cues[index]["faithful_translation"] = translated
             cues[index]["literal_translation"] = translated
@@ -213,15 +187,23 @@ def adaptation_pass(llm, cues: list[dict], output: Path) -> None:
         urgency = (f"A previous spoken take was {previous_stretch:.1f}% too long; the shorter choice must be "
                    "materially shorter. " if previous_stretch > timing_limit else "")
         prompt = f"""Adapt one already-translated film line for dubbing. Do not translate it again.
-Return strict JSON with six distinct versions:
-{{"natural":"...","shorter":"...","lip_compatible":"...","rhythmic":"...","literal_short":"...","idiomatic_short":"..."}}
+Produce six distinct versions: natural, shorter, lip_compatible, rhythmic, literal_short, idiomatic_short.
 All values must be idiomatic {TARGET}, never transliteration. Preserve meaning, names, facts and register.
 {urgency}Target spoken duration: {target:.2f} seconds, roughly {max(1, round(target * 2.65))} words.
 Mouth clearly visible: {bool(cue.get('mouth_visible'))}. Match vowel/syllable rhythm more closely when true.
 Faithful {TARGET} translation: {faithful}
 Scene context:
 {context_text}"""
-        candidates = parse_candidates(ask(llm, prompt, 240))
+        names = ("natural", "shorter", "lip_compatible", "rhythmic", "literal_short", "idiomatic_short")
+        try:
+            versions = ask_json(llm, prompt, {
+                "type": "object", "properties": {name: {"type": "string"} for name in names},
+                "required": list(names)}, max_tokens=320)
+        except StructuredOutputError:
+            versions = {}
+        candidates = list(dict.fromkeys(
+            " ".join(str(versions[name]).split()) for name in names
+            if isinstance(versions.get(name), str) and versions[name].strip()))
         semantic = judge_candidates(llm, cue, faithful, candidates)
         selected, confidence = choose_candidate(faithful, candidates, target, True,
                                                  semantic=semantic, cue=cue)

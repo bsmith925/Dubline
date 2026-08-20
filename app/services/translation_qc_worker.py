@@ -2,44 +2,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 from pathlib import Path
 
 from app.config import settings
-
-
-def parse_json(text: str):
-    # Qwen3 is a reasoning model; drop any (possibly unterminated) thinking block.
-    text = re.sub(r"<think>[\s\S]*?(?:</think>|$)", "", text).strip()
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        match = re.search(r"\[[\s\S]*\]", text)
-        if match:
-            try:
-                return json.loads(match.group(0))
-            except json.JSONDecodeError:
-                pass
-        # Salvage individual objects from a truncated array.
-        return [json.loads(item) for item in re.findall(r"\{[^{}]*\}", text)
-                if _loads_quietly(item) is not None]
-
-
-def _loads_quietly(text: str):
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        return None
-
-
-def ask(llm, prompt: str, max_tokens: int = 2500) -> str:
-    # ``/no_think`` is Qwen3's soft switch: without it the judge spends its
-    # token budget reasoning and can truncate before emitting the JSON array.
-    response = llm.create_chat_completion(
-        messages=[{"role": "user", "content": prompt.rstrip() + "\n/no_think"}], temperature=0.0,
-        top_p=.85, max_tokens=max_tokens,
-    )
-    return str(response["choices"][0]["message"]["content"])
+from app.services.llm_json import StructuredOutputError, array_of, ask_json, number
 
 
 def main() -> None:
@@ -80,25 +46,24 @@ def main() -> None:
 The translations were created by a different model. Judge SOURCE directly against DUB {target};
 use FAITHFUL {target} only as secondary evidence. Detect changed facts, polarity, names, relationships,
 omissions, additions, mistranslated idioms and register changes. Do not reward fluency alone.
-Return only a JSON array, one object per ID:
-{{"id":1,"adequacy":0.0,"names":0.0,"register":0.0,"passed":false,"reason":"concise specific reason"}}
+Give one verdict per ID with adequacy, names and register scores from 0 to 1 and a concise specific reason.
 Pass only when adequacy >= 0.78, names >= 0.85, and no material omission/addition exists.
 
 {lines}"""
-        values = parse_json(ask(llm, prompt))
-        valid = {int(item.get("id", -1)): item for item in values if isinstance(item, dict)}
-        # Re-ask one line at a time for anything the batch failed to cover, so a
-        # single malformed answer cannot fail every line around it.
-        for cue in batch:
-            if int(cue["id"]) in valid:
-                continue
-            single_lines = (f"ID {cue['id']}\nSOURCE ({cue.get('source_language') or 'auto'}): {cue.get('source','')}\n"
-                            f"FAITHFUL {target}: {cue.get('faithful_translation') or cue.get('literal_translation','')}\n"
-                            f"DUB {target}: {cue.get('english','')}")
-            retry = parse_json(ask(llm, prompt.replace(lines, single_lines), max_tokens=600))
-            for item in retry:
-                if isinstance(item, dict) and int(item.get("id", -1)) == int(cue["id"]):
-                    valid[int(cue["id"])] = item
+        ids = [int(cue["id"]) for cue in batch]
+        schema = array_of({
+            "type": "object",
+            "properties": {"id": {"type": "integer", "enum": ids}, "adequacy": {"type": "number"},
+                           "names": {"type": "number"}, "register": {"type": "number"},
+                           "passed": {"type": "boolean"}, "reason": {"type": "string"}},
+            "required": ["id", "adequacy", "names", "register", "passed", "reason"],
+        }, "verdicts", min_items=len(ids), max_items=len(ids))
+        valid: dict[int, dict] = {}
+        try:
+            for item in ask_json(llm, prompt, schema, max_tokens=120 + 90 * len(ids))["verdicts"]:
+                valid.setdefault(int(item["id"]), item)
+        except StructuredOutputError as exc:
+            print(json.dumps({"warning": f"judge batch failed: {exc}"}), flush=True)
         for cue in batch:
             item = valid.get(int(cue["id"]))
             if not item:
@@ -106,7 +71,9 @@ Pass only when adequacy >= 0.78, names >= 0.85, and no material omission/additio
                         "passed": False, "reason": "independent judge returned no result"}
             item["available"] = True
             item["model"] = "Qwen3-8B Q4 independent bilingual judge"
-            item["passed"] = bool(item.get("passed")) and float(item.get("adequacy", 0)) >= .78
+            for key in ("adequacy", "names", "register"):
+                item[key] = number(item.get(key))
+            item["passed"] = bool(item.get("passed")) and item["adequacy"] >= .78
             results.append(item)
         completed += len(batch)
         args.output.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
