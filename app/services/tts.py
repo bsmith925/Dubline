@@ -198,13 +198,14 @@ def synthesize_voice_lines(manifest_data: dict, folder: Path,
 
 
 def synthesize_qwen_fallback(items: list[dict], folder: Path,
-                             progress: Callable[[dict], None], checkpoint: Callable[[], None]) -> bool:
+                             progress: Callable[[dict], None], checkpoint: Callable[[], None],
+                             pass_name: str = "primary") -> bool:
     runtime = settings.qwen_tts_runtime
     model = settings.qwen_tts_model
     if not items or not runtime.is_file() or not (model / "model.safetensors").is_file():
         return False
-    manifest = folder / "qwen-tts-manifest.json"
-    results = folder / "qwen-tts-results.json"
+    manifest = folder / f"qwen-tts-manifest-{pass_name}.json"
+    results = folder / f"qwen-tts-results-{pass_name}.json"
     results.unlink(missing_ok=True)
     manifest.write_text(json.dumps({"model": str(model), "items": items, "results": str(results)},
                                    ensure_ascii=False, indent=2), encoding="utf-8")
@@ -220,10 +221,12 @@ def synthesize_qwen_fallback(items: list[dict], folder: Path,
             tail.append(line.rstrip()); tail = tail[-20:]
             try:
                 event = json.loads(line)
-                if "progress" in event:
-                    reported.add(int(event["cue_index"])); progress(event)
-            except (json.JSONDecodeError, KeyError, ValueError, TypeError):
-                pass
+            except json.JSONDecodeError:
+                continue  # model-library chatter on the same stream
+            if isinstance(event, dict) and "progress" in event and "cue_index" in event:
+                # Callback errors must surface, not vanish: they are pipeline bugs.
+                progress(event)
+                reported.add(int(event["cue_index"]))
         code = process.wait()
     except BaseException:
         terminate_process(process)

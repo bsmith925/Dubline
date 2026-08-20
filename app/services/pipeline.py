@@ -717,12 +717,19 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
             """Voice ``items`` with the engine chosen for the target language (all passes)."""
             with gpu_stage(folder, f"{engine_label} {stage_name}", checkpoint):
                 if voice_engine == "qwen-tts":
-                    if not synthesize_qwen_fallback(items, folder, progress, checkpoint):
+                    if not synthesize_qwen_fallback(items, folder, progress, checkpoint,
+                                                    pass_name=stage_name.replace(" ", "-")):
                         raise RuntimeError("Qwen3-TTS runtime or model is missing; it is required for "
                                            f"{target_language} synthesis")
                 else:
                     synthesize_voice_lines({"engine": options.get("engine", "indextts"), "items": items},
                                            folder, progress, checkpoint)
+            wanted = {int(item["cue_index"]) for item in items}
+            measured = sum(1 for index in wanted if cues[index].get("qc", {}).get("stretch_percent") is not None)
+            log(f"{engine_label} {stage_name}: {measured} of {len(wanted)} line(s) returned timing metrics")
+            if measured < len(wanted):
+                raise RuntimeError(f"{engine_label} {stage_name} left {len(wanted) - measured} line(s) without "
+                                   "timing metrics; refusing to continue with unverifiable takes")
 
         synthesize(tts_items, "primary synthesis", voice_progress)
         persist_cues(force=True)
