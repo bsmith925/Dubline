@@ -3,17 +3,17 @@ from __future__ import annotations
 """Optional, confidence-gated MuseTalk finishing for a few clean visible shots."""
 
 import json
-import os
 import shutil
 import subprocess
 from pathlib import Path
 from typing import Callable
 
+from app.config import settings
 from app.services.subprocess_control import controlled_lines, terminate_process
 
 
 def _enabled() -> bool:
-    return os.getenv("MUSETALK_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}
+    return settings.musetalk_enabled
 
 
 def _run(command: list[str], cwd: Path, checkpoint: Callable[[], None]) -> tuple[bool, str]:
@@ -60,9 +60,9 @@ def apply_selective_lipsync(source: Path, cues: list[dict], dialogue_dir: Path, 
     if unsafe:
         return None, {"enabled": True, "ready": True, "selected": 0, "completed": 0,
                       "refused": True, "reason": "; ".join(unsafe)}
-    repo = Path(os.getenv("MUSETALK_REPO", "vendor/MuseTalk")).resolve()
-    runtime = Path(os.getenv("MUSETALK_RUNTIME", "vendor/musetalk-env/Scripts/python.exe")).resolve()
-    model_dir = Path(os.getenv("MUSETALK_MODEL_DIR", repo / "models/musetalkV15")).resolve()
+    repo = settings.musetalk_repo
+    runtime = settings.musetalk_runtime
+    model_dir = settings.musetalk_model_dir
     required = [runtime, model_dir / "unet.pth", model_dir / "musetalk.json",
                 repo / "models/whisper/pytorch_model.bin"]
     if not all(path.is_file() for path in required):
@@ -79,7 +79,7 @@ def apply_selective_lipsync(source: Path, cues: list[dict], dialogue_dir: Path, 
                 and float(visual.get("face_area_ratio", 0)) >= .004
                 and .45 <= duration <= 8.0):
             candidates.append((index, cue))
-    candidates = candidates[:max(0, int(os.getenv("MUSETALK_MAX_SHOTS", "6")))]
+    candidates = candidates[:settings.musetalk_max_shots]
     if not candidates:
         return None, {"enabled": True, "ready": True, "selected": 0, "completed": 0}
 

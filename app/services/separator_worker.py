@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 import time
 import types
@@ -13,6 +12,8 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 import torch
+
+from app.config import settings
 
 
 SAMPLE_RATE = 48_000
@@ -128,7 +129,7 @@ def separate_file(source: Path, dialogue_path: Path, background_path: Path, chec
                 block_index += 1
                 print(json.dumps({"progress": min(1.0, block_index / total_blocks), "block": block_index,
                                   "blocks": total_blocks}), flush=True)
-                time.sleep(max(0.0, float(os.getenv("DUB_GPU_BLOCK_COOLDOWN_SECONDS", ".6"))))
+                time.sleep(settings.dub_gpu_block_cooldown_seconds)
                 position += step_frames
     del model
     torch.cuda.empty_cache()

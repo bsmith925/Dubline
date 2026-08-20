@@ -1,18 +1,18 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
 from typing import Callable
 
+from app.config import settings
 from app.services.subprocess_control import controlled_lines, terminate_process
 
 
 def adapt_dialogue(cues: list[dict], folder: Path, progress: Callable[[float, int], None],
                    checkpoint: Callable[[], None]) -> list[dict]:
-    model = Path(os.getenv("TRANSLATION_MODEL", "vendor/hy-mt2-7b/Hy-MT2-7B-Q4_K_M.gguf")).resolve()
+    model = settings.translation_model
     if not model.is_file():
         raise RuntimeError("The local Hy-MT2 scene-translation model is missing")
     manifest = folder / "adapter-manifest.json"

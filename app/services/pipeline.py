@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import queue
 import copy
 import csv
@@ -15,6 +14,7 @@ import statistics
 from pathlib import Path
 from typing import Callable
 
+from app.config import settings
 from app.services.cinematic import recover_roformer, recover_vocals, separate_cinematic_audio
 from app.services.analysis_cache import media_fingerprint, restore_json_artifact, store_json_artifact
 from app.services.gpu_safety import gpu_safety_summary, gpu_stage
@@ -91,7 +91,7 @@ def inspect_system() -> dict:
         "cuda": False,
         "gpu": "No CUDA GPU detected",
         "gpu_free_mb": 0, "disk_free_gb": round(shutil.disk_usage(Path.cwd()).free / 1024 ** 3, 1),
-        "engine": os.getenv("DUB_ENGINE", "indextts"),
+        "engine": settings.dub_engine,
         "model_ready": False, "emotion_ready": False, "aux_models_ready": False,
         "whisper_ready": False, "separator_ready": False, "recovery_ready": False,
         "roformer_ready": False, "asr_ready": False, "aligner_ready": False,
@@ -116,8 +116,7 @@ def inspect_system() -> dict:
         status["cuda"] = bool(getattr(torch, "cuda", None) and torch.cuda.is_available())
     except Exception:
         pass
-    repo = Path(os.getenv("INDEXTTS_REPO", "vendor/index-tts")).resolve()
-    model_dir = Path(os.getenv("INDEXTTS_MODEL_DIR", repo / "checkpoints")).resolve()
+    model_dir = settings.indextts_model_dir
     status["emotion_ready"] = (model_dir / "qwen0.6bemo4-merge" / "model.safetensors").is_file()
     status["aux_models_ready"] = all(path.exists() for path in (
         model_dir / "hf_cache" / "w2v-bert-2.0",
@@ -125,12 +124,12 @@ def inspect_system() -> dict:
         model_dir / "hf_cache" / "campplus_cn_common.bin",
         model_dir / "hf_cache" / "bigvgan" / "bigvgan_generator.pt",
     ))
-    whisper_dir = Path(os.getenv("WHISPER_CACHE_DIR", "vendor/whisper")).resolve()
+    whisper_dir = settings.whisper_cache_dir
     status["whisper_ready"] = (whisper_dir / "large-v3-turbo.pt").is_file()
-    bandit_repo = Path(os.getenv("BANDIT_REPO", "vendor/bandit-v2")).resolve()
+    bandit_repo = settings.bandit_repo
     status["separator_ready"] = (
         (bandit_repo / "src" / "models" / "bandit" / "bandit.py").is_file()
-        and (Path(os.getenv("BANDIT_CHECKPOINT", bandit_repo / "checkpoints" / "checkpoint-multi.ckpt"))).is_file()
+        and settings.bandit_checkpoint.is_file()
     )
     try:
         import importlib.util
@@ -138,42 +137,22 @@ def inspect_system() -> dict:
         status["recovery_ready"] = importlib.util.find_spec("demucs") is not None and demucs_weights.is_file()
     except (ImportError, ValueError):
         pass
-    roformer_dir = Path(os.getenv(
-        "ROFORMER_MODEL_DIR", "vendor/melband-roformer/melband-roformer-kim-vocals"
-    )).resolve()
+    roformer_dir = settings.roformer_model_dir
     status["roformer_ready"] = (roformer_dir / "MelBandRoformer.ckpt").is_file() and (
         roformer_dir / "config_vocals_mel_band_roformer.yaml").is_file()
-    status["asr_ready"] = (Path(os.getenv(
-        "QWEN_ASR_MODEL", "vendor/qwen3-asr-0.6b-qwen"
-    )).resolve() / "model.safetensors").is_file()
-    escalation_dir = Path(os.getenv(
-        "QWEN_ASR_ESCALATION_MODEL", "vendor/qwen3-asr-1.7b-qwen"
-    )).resolve()
+    status["asr_ready"] = (settings.qwen_asr_model / "model.safetensors").is_file()
+    escalation_dir = settings.qwen_asr_escalation_model
     status["asr_escalation_ready"] = ((escalation_dir / "model.safetensors").is_file()
                                        or (escalation_dir / "model.safetensors.index.json").is_file())
-    status["aligner_ready"] = (Path(os.getenv(
-        "QWEN_ALIGNER_MODEL", "vendor/qwen3-forced-aligner-0.6b-qwen"
-    )).resolve() / "model.safetensors").is_file()
-    status["adapter_ready"] = Path(os.getenv(
-        "TRANSLATION_MODEL", "vendor/hy-mt2-7b/Hy-MT2-7B-Q4_K_M.gguf"
-    )).resolve().is_file()
-    status["translation_qc_ready"] = Path(os.getenv(
-        "TRANSLATION_QC_MODEL", "vendor/qwen3-8b/Qwen3-8B-Q4_K_M.gguf"
-    )).resolve().is_file()
-    status["diarization_ready"] = (Path(os.getenv(
-        "PYANNOTE_MODEL", "vendor/pyannote-community-1"
-    )).resolve() / "config.yaml").is_file() and Path(os.getenv(
-        "PYANNOTE_RUNTIME", "vendor/pyannote-env/Scripts/python.exe"
-    )).resolve().is_file()
-    face_dir = Path(os.getenv("OPENCV_FACE_MODEL_DIR", "vendor/opencv-face")).resolve()
+    status["aligner_ready"] = (settings.qwen_aligner_model / "model.safetensors").is_file()
+    status["adapter_ready"] = settings.translation_model.is_file()
+    status["translation_qc_ready"] = settings.translation_qc_model.is_file()
+    status["diarization_ready"] = (settings.pyannote_model / "config.yaml").is_file() and settings.pyannote_runtime.is_file()
+    face_dir = settings.opencv_face_model_dir
     status["visual_speaker_ready"] = all((face_dir / name).is_file() for name in (
         "face_detection_yunet_2023mar.onnx", "face_recognition_sface_2021dec.onnx"))
-    status["tts_fallback_ready"] = (Path(os.getenv(
-        "QWEN_TTS_MODEL", "vendor/qwen3-tts-1.7b-base"
-    )).resolve() / "model.safetensors").is_file()
-    status["musetalk_ready"] = (Path(os.getenv(
-        "MUSETALK_MODEL_DIR", "vendor/MuseTalk/models/musetalkV15"
-    )).resolve() / "unet.pth").is_file()
+    status["tts_fallback_ready"] = (settings.qwen_tts_model / "model.safetensors").is_file()
+    status["musetalk_ready"] = (settings.musetalk_model_dir / "unet.pth").is_file()
     primary_ready = all((model_dir / name).is_file() for name in ("config.yaml", "gpt.pth", "s2mel.pth", "codec.pth"))
     status["model_ready"] = primary_ready and status["emotion_ready"] and status["aux_models_ready"]
     status["gpu_safety"] = gpu_safety_summary()
@@ -1120,7 +1099,7 @@ def whisper_model(name: str):
                 import whisper
             except ImportError as exc:
                 raise RuntimeError("OpenAI Whisper is not installed") from exc
-            download_root = Path(os.getenv("WHISPER_CACHE_DIR", "vendor/whisper")).resolve()
+            download_root = settings.whisper_cache_dir
             download_root.mkdir(parents=True, exist_ok=True)
             _whisper_models[name] = whisper.load_model(name, download_root=str(download_root))
         return _whisper_models[name]
@@ -1193,7 +1172,7 @@ def transcribe_long_audio(audio: Path, folder: Path, model_name: str, checkpoint
     output = folder / "asr-dialogue-map.json"
     language_code = {"Japanese": "ja", "Chinese": "zh", "Spanish": "es", "Arabic": "ar", "English": "en"}.get(source_value)
     manifest.write_text(json.dumps({"files": [str(path) for path in files], "model": model_name,
-                                    "cache": str(Path(os.getenv("WHISPER_CACHE_DIR", "vendor/whisper")).resolve()),
+                                    "cache": str(settings.whisper_cache_dir),
                                     "source_language": language_code, "chunk_seconds": 1500}, indent=2), encoding="utf-8")
     process = subprocess.Popen(
         [sys.executable, "-m", "app.services.whisper_worker", "--manifest", str(manifest), "--output", str(output)],

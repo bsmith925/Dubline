@@ -9,7 +9,7 @@ from pathlib import Path
 import soundfile as sf
 import torch
 
-from app.services.tts_worker import fit_audio
+from app.services.audio_fit import fit_audio
 
 
 def main() -> None:
@@ -34,6 +34,7 @@ def main() -> None:
         metrics = fit_audio(raw, fitted, float(item["target"]))
         print(json.dumps({"progress": (position + 1) / max(1, len(spec["items"])),
                           "cue_index": item["cue_index"], **metrics}), flush=True)
+        # This worker runs in a foreign venv without pydantic; app.config exports the value.
         time.sleep(max(0.0, float(os.getenv("DUB_GPU_LINE_COOLDOWN_SECONDS", ".45"))))
     os._exit(0)
 

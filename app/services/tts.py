@@ -8,6 +8,7 @@ import threading
 from pathlib import Path
 from typing import Callable
 
+from app.config import settings
 from app.services.subprocess_control import controlled_lines, terminate_process
 
 
@@ -21,8 +22,8 @@ class ContextEmotionAnalyzer:
         self.mode = mode
         self.analyzer = None
         if mode in {"auto", "text"} and not preview:
-            repo = Path(os.getenv("INDEXTTS_REPO", "vendor/index-tts")).resolve()
-            model_dir = Path(os.getenv("INDEXTTS_MODEL_DIR", repo / "checkpoints")).resolve()
+            repo = settings.indextts_repo
+            model_dir = settings.indextts_model_dir
             if str(repo) not in sys.path:
                 sys.path.insert(0, str(repo))
             from indextts.infer_v2_5 import QwenEmotion
@@ -69,8 +70,8 @@ class IndexTTSEngine:
         with self._model_lock:
             if self._model is not None:
                 return self._model
-            repo = Path(os.getenv("INDEXTTS_REPO", "vendor/index-tts")).resolve()
-            model_dir = Path(os.getenv("INDEXTTS_MODEL_DIR", str(repo / "checkpoints"))).resolve()
+            repo = settings.indextts_repo
+            model_dir = settings.indextts_model_dir
             required = ("config.yaml", "gpt.pth", "s2mel.pth", "codec.pth")
             missing = [name for name in required if not (model_dir / name).is_file()]
             if missing:
@@ -198,8 +199,8 @@ def synthesize_voice_lines(manifest_data: dict, folder: Path,
 
 def synthesize_qwen_fallback(items: list[dict], folder: Path,
                              progress: Callable[[dict], None], checkpoint: Callable[[], None]) -> bool:
-    runtime = Path(os.getenv("QWEN_TTS_RUNTIME", "vendor/qwen-tts-env/Scripts/python.exe")).resolve()
-    model = Path(os.getenv("QWEN_TTS_MODEL", "vendor/qwen3-tts-1.7b-base")).resolve()
+    runtime = settings.qwen_tts_runtime
+    model = settings.qwen_tts_model
     if not items or not runtime.is_file() or not (model / "model.safetensors").is_file():
         return False
     manifest = folder / "qwen-tts-manifest.json"

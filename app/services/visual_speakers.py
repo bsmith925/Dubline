@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 from collections import defaultdict
 from pathlib import Path
 from typing import Callable
 
+from app.config import settings
 from app.services.analysis_cache import restore_json_artifact, store_json_artifact
 from app.services.subprocess_control import controlled_lines, terminate_process
 
@@ -78,7 +78,7 @@ def build_face_registry(video: Path, folder: Path, duration: float,
                         progress: Callable[[float], None], checkpoint: Callable[[], None],
                         cache_key: str | None = None) -> dict:
     """Cluster recurring faces across the whole original film before cue assignment."""
-    model_dir = Path(os.getenv("OPENCV_FACE_MODEL_DIR", "vendor/opencv-face")).resolve()
+    model_dir = settings.opencv_face_model_dir
     detector = model_dir / "face_detection_yunet_2023mar.onnx"
     recognizer = model_dir / "face_recognition_sface_2021dec.onnx"
     registry = folder / "face-registry.json"
@@ -184,7 +184,7 @@ def fuse_visual_speakers(cues: list[dict], visual: dict[int, dict]) -> dict:
 
 def register_visual_speakers(video: Path, cues: list[dict], folder: Path,
                              progress: Callable[[float], None], checkpoint: Callable[[], None]) -> dict:
-    model_dir = Path(os.getenv("OPENCV_FACE_MODEL_DIR", "vendor/opencv-face")).resolve()
+    model_dir = settings.opencv_face_model_dir
     detector = model_dir / "face_detection_yunet_2023mar.onnx"
     recognizer = model_dir / "face_recognition_sface_2021dec.onnx"
     if not detector.is_file() or not recognizer.is_file():

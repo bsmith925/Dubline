@@ -11,6 +11,8 @@ from pathlib import Path
 import torch
 import whisper
 
+from app.config import settings
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -31,7 +33,7 @@ def main() -> None:
                         "confidence": round(confidence, 4)})
         args.output.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
         print(json.dumps({"progress": (index + 1) / max(1, len(spec["items"])), "index": index}), flush=True)
-        time.sleep(max(0.0, float(os.getenv("DUB_GPU_QC_COOLDOWN_SECONDS", ".2"))))
+        time.sleep(settings.dub_gpu_qc_cooldown_seconds)
     sys.stdout.flush(); sys.stderr.flush(); os._exit(0)
 
 

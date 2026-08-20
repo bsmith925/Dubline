@@ -18,6 +18,8 @@ from mel_band_roformer.inference import SafeLoaderWithTuple
 from mel_band_roformer.utils import demix_track, get_model_from_config
 from ml_collections import ConfigDict
 
+from app.config import settings
+
 
 OUTPUT_RATE = 48_000
 
@@ -78,7 +80,7 @@ def main() -> None:
                 torch.cuda.empty_cache()
                 block_index += 1
                 print(json.dumps({"progress": min(1.0, block_index / blocks), "block": block_index}), flush=True)
-                time.sleep(max(0.0, float(os.getenv("DUB_GPU_BLOCK_COOLDOWN_SECONDS", ".6"))))
+                time.sleep(settings.dub_gpu_block_cooldown_seconds)
                 position += step
     del model; torch.cuda.empty_cache(); sys.stdout.flush(); sys.stderr.flush(); os._exit(0)
 

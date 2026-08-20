@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import difflib
 import re
 from pathlib import Path
 from typing import Callable
 
+from app.config import settings
 from app.services.subprocess_control import controlled_lines, terminate_process
 
 
@@ -23,7 +23,7 @@ def _checkpoint_ready(folder: Path) -> bool:
 def _run_aligned_worker(windows: list[dict], folder: Path, language: str | None,
                         asr_model: Path, aligner_model: Path, name: str,
                         progress: Callable[[float, int], None], checkpoint: Callable[[], None]) -> list[dict]:
-    runtime = Path(os.getenv("QWEN_ASR_RUNTIME", "vendor/pyannote-env/Scripts/python.exe")).resolve()
+    runtime = settings.qwen_asr_runtime
     manifest = folder / f"qwen-asr-{name}-manifest.json"
     output = folder / f"asr-dialogue-map-{name}.json"
     manifest.write_text(json.dumps({
@@ -63,11 +63,10 @@ def _agreement(first: list[dict], second: list[dict]) -> float:
 
 def transcribe_aligned(windows: list[dict], folder: Path, language: str | None,
                        progress: Callable[[float, int], None], checkpoint: Callable[[], None]) -> list[dict] | None:
-    runtime = Path(os.getenv("QWEN_ASR_RUNTIME", "vendor/pyannote-env/Scripts/python.exe")).resolve()
-    asr_model = Path(os.getenv("QWEN_ASR_MODEL", "vendor/qwen3-asr-0.6b-qwen")).resolve()
-    escalation_model = Path(os.getenv(
-        "QWEN_ASR_ESCALATION_MODEL", "vendor/qwen3-asr-1.7b-qwen")).resolve()
-    aligner_model = Path(os.getenv("QWEN_ALIGNER_MODEL", "vendor/qwen3-forced-aligner-0.6b-qwen")).resolve()
+    runtime = settings.qwen_asr_runtime
+    asr_model = settings.qwen_asr_model
+    escalation_model = settings.qwen_asr_escalation_model
+    aligner_model = settings.qwen_aligner_model
     if not runtime.is_file() or not (asr_model / "model.safetensors").is_file() \
             or not (aligner_model / "model.safetensors").is_file():
         return None

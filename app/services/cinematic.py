@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import json
-import os
 import queue
 import subprocess
 import sys
 import threading
 from pathlib import Path
 from typing import Callable
+
+from app.config import settings
 
 
 def _terminate(process: subprocess.Popen) -> None:
@@ -78,8 +79,8 @@ def _worker(command: list[str], outputs: list[Path], label: str,
 
 def separate_cinematic_audio(film_mix: Path, dialogue: Path, background: Path,
                              progress: Callable[[float], None], checkpoint: Callable[[], None]) -> None:
-    repo = Path(os.getenv("BANDIT_REPO", "vendor/bandit-v2")).resolve()
-    weights = Path(os.getenv("BANDIT_CHECKPOINT", repo / "checkpoints" / "checkpoint-multi.ckpt")).resolve()
+    repo = settings.bandit_repo
+    weights = settings.bandit_checkpoint
     if not weights.is_file():
         raise RuntimeError("The multilingual Bandit v2 cinematic separation checkpoint is missing")
     _worker(
@@ -102,8 +103,7 @@ def recover_vocals(film_mix: Path, vocals: Path, progress: Callable[[float], Non
 
 def recover_roformer(film_mix: Path, vocals: Path, progress: Callable[[float], None],
                      checkpoint: Callable[[], None]) -> None:
-    model_dir = Path(os.getenv(
-        "ROFORMER_MODEL_DIR", "vendor/melband-roformer/melband-roformer-kim-vocals")).resolve()
+    model_dir = settings.roformer_model_dir
     weights = model_dir / "MelBandRoformer.ckpt"
     config = model_dir / "config_vocals_mel_band_roformer.yaml"
     if not weights.is_file() or not config.is_file():

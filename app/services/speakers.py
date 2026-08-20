@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -8,13 +7,15 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
+from app.config import settings
+
 
 def analyze_speakers(dialogue_audio: Path, cues: list[dict], output_dir: Path) -> dict[int, Path]:
     """Cluster cue-level CAMPPlus voiceprints and build a clean reference bank."""
     if not cues:
         return {}
-    repo = Path(os.getenv("INDEXTTS_REPO", "vendor/index-tts")).resolve()
-    model_dir = Path(os.getenv("INDEXTTS_MODEL_DIR", repo / "checkpoints")).resolve()
+    repo = settings.indextts_repo
+    model_dir = settings.indextts_model_dir
     if str(repo) not in sys.path:
         sys.path.insert(0, str(repo))
 
@@ -183,8 +184,8 @@ def score_speaker_similarity(cues: list[dict], generated_dir: Path,
     """Add CAMPPlus cosine similarity between each take and its character bank."""
     if not cues or not references:
         return
-    repo = Path(os.getenv("INDEXTTS_REPO", "vendor/index-tts")).resolve()
-    model_dir = Path(os.getenv("INDEXTTS_MODEL_DIR", repo / "checkpoints")).resolve()
+    repo = settings.indextts_repo
+    model_dir = settings.indextts_model_dir
     if str(repo) not in sys.path:
         sys.path.insert(0, str(repo))
     import torch

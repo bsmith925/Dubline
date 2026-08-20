@@ -1,36 +1,27 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
 from typing import Callable
 
+from app.config import settings, settings_from
 from app.services.subprocess_control import controlled_lines, terminate_process
 
 
 def diarization_runtime_settings(environment: dict[str, str] | None = None) -> tuple[str, int, int]:
-    environment = environment or os.environ
-    device = environment.get("DUB_DIARIZATION_DEVICE", "cuda").strip().lower()
-    if device not in {"cpu", "cuda"}:
-        device = "cuda"
-    try:
-        batch_size = max(1, min(8, int(environment.get("DUB_DIARIZATION_BATCH_SIZE", "4"))))
-    except ValueError:
-        batch_size = 4
-    try:
-        cpu_threads = max(1, min(12, int(environment.get("DUB_DIARIZATION_CPU_THREADS", "8"))))
-    except ValueError:
-        cpu_threads = 8
-    return device, batch_size, cpu_threads
+    """Device, batch size and CPU threads for the isolated pyannote worker."""
+    config = settings if environment is None else settings_from(environment)
+    return (config.dub_diarization_device, config.dub_diarization_batch_size,
+            config.dub_diarization_cpu_threads)
 
 
 def diarize(audio: Path, folder: Path, progress: Callable[[float], None], checkpoint: Callable[[], None]) -> dict | None:
-    model = Path(os.getenv("PYANNOTE_MODEL", "vendor/pyannote-community-1")).resolve()
+    model = settings.pyannote_model
     if not (model / "config.yaml").is_file():
         return None
-    runtime = Path(os.getenv("PYANNOTE_RUNTIME", "vendor/pyannote-env/Scripts/python.exe")).resolve()
+    runtime = settings.pyannote_runtime
     if not runtime.is_file():
         raise RuntimeError("The isolated pyannote runtime is missing")
     output = folder / "speaker-diarization.json"

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import time
 from pathlib import Path
 
@@ -14,6 +13,8 @@ import torch
 import torchaudio
 from demucs.apply import apply_model
 from demucs.pretrained import get_model
+
+from app.config import settings
 
 
 OUTPUT_RATE = 48_000
@@ -103,7 +104,7 @@ def recover_file(source: Path, output: Path, model_name: str = "htdemucs",
                 block_index += 1
                 print(json.dumps({"progress": min(1.0, block_index / total_blocks),
                                   "block": block_index, "blocks": total_blocks}), flush=True)
-                time.sleep(max(0.0, float(os.getenv("DUB_GPU_BLOCK_COOLDOWN_SECONDS", ".6"))))
+                time.sleep(settings.dub_gpu_block_cooldown_seconds)
                 position += step_frames
     del model
     torch.cuda.empty_cache()

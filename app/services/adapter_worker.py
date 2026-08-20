@@ -6,9 +6,10 @@ import argparse
 import difflib
 import json
 import math
-import os
 import re
 from pathlib import Path
+
+from app.config import settings
 
 
 def predicted_seconds(text: str) -> float:
@@ -233,7 +234,7 @@ def main() -> None:
     args = parser.parse_args()
     spec = json.loads(args.manifest.read_text(encoding="utf-8")); cues = spec["cues"]
     from llama_cpp import Llama
-    gpu_layers = int(os.getenv("DUB_LLAMA_GPU_LAYERS", "-1"))
+    gpu_layers = settings.dub_llama_gpu_layers
     llm = Llama(model_path=spec["model"], n_ctx=8192, n_batch=512, n_threads=10,
                 n_threads_batch=12, n_gpu_layers=gpu_layers, verbose=False)
     faithful_pass(llm, cues)

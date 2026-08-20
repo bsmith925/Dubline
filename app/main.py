@@ -14,13 +14,17 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from app.config import settings
 from app.services.pipeline import PipelineWorker, inspect_system
 from app.services.subtitles import audio_streams, media_duration, probe_media, subtitle_streams
 from app.store import JobStore
 
 
-BASE = Path(__file__).resolve().parent.parent
-DATA = Path(os.getenv("DUB_WORKDIR", BASE / "data")).resolve()
+BASE = settings.base_dir
+# Relative vendor/model paths and worker module lookups are rooted at the project.
+os.chdir(BASE)
+settings.export_environment()
+DATA = settings.dub_workdir
 DATA.mkdir(parents=True, exist_ok=True)
 WEB = BASE / "web"
 store = JobStore(DATA / "dubstudio.sqlite3")
@@ -554,7 +558,7 @@ async def download_export(job_id: str, kind: Literal["srt", "csv", "edl", "clips
 def normalized_options(values: dict) -> dict:
     subtitle_mode = values.get("subtitle_mode", "auto")
     audio_mode = values.get("audio_mode", "separate")
-    engine = values.get("engine", os.getenv("DUB_ENGINE", "indextts"))
+    engine = values.get("engine", settings.dub_engine)
     def optional_seconds(name: str) -> float | None:
         value = values.get(name)
         if value in (None, ""):
@@ -583,7 +587,7 @@ def normalized_options(values: dict) -> dict:
         "target_language": str(values.get("target_language", "English")),
         "workflow_mode": values.get("workflow_mode") if values.get("workflow_mode") in {"automatic", "review", "approval"} else "automatic",
         "mastering_preset": values.get("mastering_preset") if values.get("mastering_preset") in {"cinema", "broadcast", "web", "preserve"} else "cinema",
-        "whisper_model": str(values.get("whisper_model", os.getenv("WHISPER_MODEL", "turbo"))),
+        "whisper_model": str(values.get("whisper_model", settings.whisper_model)),
         "range_start": range_start,
         "range_end": range_end,
         "audio_stream_index": (int(values["audio_stream_index"])

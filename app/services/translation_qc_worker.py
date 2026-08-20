@@ -2,23 +2,42 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 from pathlib import Path
 
+from app.config import settings
+
 
 def parse_json(text: str):
+    # Qwen3 is a reasoning model; drop any (possibly unterminated) thinking block.
+    text = re.sub(r"<think>[\s\S]*?(?:</think>|$)", "", text).strip()
     try:
         return json.loads(text)
     except json.JSONDecodeError:
         match = re.search(r"\[[\s\S]*\]", text)
-        return json.loads(match.group(0)) if match else []
+        if match:
+            try:
+                return json.loads(match.group(0))
+            except json.JSONDecodeError:
+                pass
+        # Salvage individual objects from a truncated array.
+        return [json.loads(item) for item in re.findall(r"\{[^{}]*\}", text)
+                if _loads_quietly(item) is not None]
 
 
-def ask(llm, prompt: str) -> str:
+def _loads_quietly(text: str):
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return None
+
+
+def ask(llm, prompt: str, max_tokens: int = 2500) -> str:
+    # ``/no_think`` is Qwen3's soft switch: without it the judge spends its
+    # token budget reasoning and can truncate before emitting the JSON array.
     response = llm.create_chat_completion(
-        messages=[{"role": "user", "content": prompt}], temperature=0.0,
-        top_p=.85, max_tokens=1500,
+        messages=[{"role": "user", "content": prompt.rstrip() + "\n/no_think"}], temperature=0.0,
+        top_p=.85, max_tokens=max_tokens,
     )
     return str(response["choices"][0]["message"]["content"])
 
@@ -31,7 +50,7 @@ def main() -> None:
     spec = json.loads(args.manifest.read_text(encoding="utf-8"))
     cues = spec["cues"]
     from llama_cpp import Llama
-    gpu_layers = int(os.getenv("DUB_LLAMA_GPU_LAYERS", "-1"))
+    gpu_layers = settings.dub_llama_gpu_layers
     llm = Llama(model_path=spec["model"], n_ctx=8192, n_batch=512, n_threads=10,
                 n_threads_batch=12, n_gpu_layers=gpu_layers, verbose=False)
     results = []

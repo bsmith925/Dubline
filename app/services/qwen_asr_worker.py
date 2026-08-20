@@ -107,6 +107,7 @@ def main() -> None:
         args.output.write_text(json.dumps(cues, ensure_ascii=False, indent=2), encoding="utf-8")
         print(json.dumps({"progress": (index + 1) / max(1, len(windows)), "window": window_id,
                           "cues": len(window_cues)}), flush=True)
+        # This worker runs in a foreign venv without pydantic; app.config exports the value.
         time.sleep(max(0.0, float(os.getenv("DUB_GPU_WINDOW_COOLDOWN_SECONDS", ".35"))))
     sys.stdout.flush(); sys.stderr.flush(); os._exit(0)
 

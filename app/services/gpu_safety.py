@@ -12,6 +12,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable, Iterator
 
+from app.config import settings
+
 
 _lock = threading.RLock()
 
@@ -41,7 +43,7 @@ def _data_root(folder: Path) -> Path:
     for candidate in (folder, *folder.parents):
         if candidate.name.lower() == "jobs":
             return candidate.parent
-    return Path(os.getenv("DUB_WORKDIR", "data")).resolve()
+    return settings.dub_workdir
 
 
 def _state_path(folder: Path) -> Path:
@@ -49,7 +51,7 @@ def _state_path(folder: Path) -> Path:
 
 
 def gpu_safety_summary(data_root: Path | None = None) -> dict:
-    root = (data_root or Path(os.getenv("DUB_WORKDIR", "data"))).resolve()
+    root = (data_root or settings.dub_workdir).resolve()
     state = _read_state(root / "gpu-safety.json")
     return {key: state.get(key) for key in (
         "status", "stage", "last_stage", "started_at", "interrupted_at",

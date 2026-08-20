@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
 from typing import Callable
 
+from app.config import settings
 from app.services.subprocess_control import controlled_lines, terminate_process
 
 
@@ -14,7 +14,7 @@ def validate_translations(cues: list[dict], folder: Path,
                           progress: Callable[[float, int], None],
                           checkpoint: Callable[[], None]) -> list[dict]:
     """Run an independent bilingual judge (Qwen3), never the Hy-MT2 generator."""
-    model = Path(os.getenv("TRANSLATION_QC_MODEL", "vendor/qwen3-8b/Qwen3-8B-Q4_K_M.gguf")).resolve()
+    model = settings.translation_qc_model
     if not model.is_file():
         for cue in cues:
             cue["translation_qc"] = {"available": False, "passed": False,

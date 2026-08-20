@@ -13,7 +13,7 @@ from app.services.dialogue import build_adaptive_dialogue
 from app.services.adapter_worker import choose_candidate, hard_line
 from app.services.qc import inspect_cues
 from app.services.qc import edit_distance
-from app.services.tts_worker import fit_audio
+from app.services.audio_fit import fit_audio
 from app.services.subtitles import looks_english, parse_microdvd, parse_srt
 from app.services.diarization import assign_diarized_speakers
 from app.services.speakers import build_reference_bank
