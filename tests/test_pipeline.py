@@ -239,3 +239,21 @@ def test_uncertain_speaker_does_not_contaminate_character_bank(tmp_path: Path):
              "reference_quality": .03, "overlapping_speech": False}]
     references = build_reference_bank(audio, cues, tmp_path / "references")
     assert set(references) == {1}
+
+
+def test_fragments_merge_into_same_speaker_utterances():
+    from app.services.dialogue import merge_into_utterances
+    cues = [
+        {"id": 1, "start": 0.0, "end": 1.0, "speaker_id": 1, "source": "Hello and welcome", "words": [{"word": "Hello", "start": 0.0, "end": 0.4}]},
+        {"id": 2, "start": 1.7, "end": 2.0, "speaker_id": 1, "source": "Uh", "words": [{"word": "Uh", "start": 1.7, "end": 2.0}]},
+        {"id": 3, "start": 2.3, "end": 4.0, "speaker_id": 1, "source": "today I will talk about the fiasco", "words": []},
+        {"id": 4, "start": 4.2, "end": 5.0, "speaker_id": 2, "source": "Really?", "words": []},
+        {"id": 5, "start": 5.1, "end": 6.0, "speaker_id": 2, "source": "Yes.", "words": []},
+        {"id": 6, "start": 9.0, "end": 9.3, "speaker_id": 2, "source": "Um", "words": []},
+    ]
+    merged = merge_into_utterances(cues)
+    assert [m["source"] for m in merged] == ["Hello and welcome Uh today I will talk about the fiasco", "Really?", "Yes.", "Um"]
+    assert merged[0]["start"] == 0.0 and merged[0]["end"] == 4.0 and merged[0]["merged_from"] == [1, 2, 3]
+    assert len(merged[0]["words"]) == 2 and merged[0]["nonverbal_filler"] is False
+    assert merged[3]["nonverbal_filler"] is True          # isolated hesitation stays a preserved line
+    assert [m["id"] for m in merged] == [1, 2, 3, 4] and all(m["utterance"] for m in merged)

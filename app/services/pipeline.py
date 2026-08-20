@@ -22,7 +22,7 @@ from app.services.languages import iso1, iso2, language as language_info, primar
 from app.services.language_id import FORCE_LANGUAGE_CONFIDENCE, detect_language, same_language
 from app.services.asr import transcribe_aligned
 from app.services.adapter import adapt_dialogue
-from app.services.dialogue import analyze_performance, build_adaptive_dialogue, is_nonverbal_filler, measure_dialogue_leakage
+from app.services.dialogue import analyze_performance, build_adaptive_dialogue, is_nonverbal_filler, measure_dialogue_leakage, merge_into_utterances
 from app.services.diarization import assign_diarized_speakers, diarize
 from app.services.qc import backtranscribe_lines, evaluate_media_qc, inspect_cues, media_qc, write_report
 from app.services.speakers import analyze_speakers, score_speaker_similarity
@@ -480,14 +480,8 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                 cue["translation_is_target"] = (str(cue["source_language"]).lower() == target_language.lower())
             # Hesitations ("uh", "um") are performance, not dialogue: never translated or
             # re-voiced; the original sound stays in the mix.
-            if is_nonverbal_filler(cue.get("source", "")):
-                cue["nonverbal_filler"] = True
-                cue["translation_is_target"] = True
-                for key in ("english", "adapted_dialogue", "literal_translation", "faithful_translation"):
-                    cue[key] = cue.get("source", "")
-        preserved = sum(1 for cue in cues if cue.get("nonverbal_filler"))
-        if preserved:
-            log(f"{preserved} hesitation line(s) keep the original performance instead of being re-voiced")
+            # (standalone hesitations are finalised after utterance grouping)
+            cue["nonverbal_filler"] = is_nonverbal_filler(cue.get("source", ""))
         update(34, f"Prepared {len(cues)} {target_language} voice lines", cues=cues, cue_source=cue_source)
         log(f"Dialogue source: {cue_source}")
         checkpoint()
@@ -596,6 +590,17 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
         speaker_references = {
             int(path.stem.split("-")[-1]): path for path in speaker_reference_dir.glob("voice-*.wav")
         }
+        if not all(cue.get("utterance") for cue in cues):
+            fragments = len(cues)
+            cues = merge_into_utterances(cues)
+            update(37.05, "Measuring source rhythm, pitch, pauses, and position per utterance")
+            analyze_performance(reference_audio, cues, film_mix if audio_mode == "separate" else source)
+            measure_dialogue_leakage(cues, reference_audio, background_stem)
+            cues_path.write_text(json.dumps(cues, indent=2, ensure_ascii=False), encoding="utf-8")
+            store.update(job_id, cues=cues)
+            preserved = sum(1 for cue in cues if cue.get("nonverbal_filler"))
+            log(f"Grouped {fragments} ASR fragment(s) into {len(cues)} utterance(s) for translation and voicing"
+                + (f"; {preserved} standalone hesitation(s) keep the original performance" if preserved else ""))
         if any("adaptation_confidence" not in cue for cue in cues):
             update(37.2, "Adapting dialogue for meaning, timing, and natural speech")
             cues = adapt_dialogue(

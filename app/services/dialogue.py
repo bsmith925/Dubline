@@ -208,3 +208,63 @@ def is_nonverbal_filler(text: str) -> bool:
     import re
     tokens = [t for t in re.split(r"[\s,.!?…、。！？]+", str(text).lower()) if t]
     return bool(tokens) and len(tokens) <= 3 and all(t.strip("-") in FILLER_TOKENS for t in tokens)
+
+
+SENTENCE_END = (".", "!", "?", "。", "！", "？", "…")
+
+
+def merge_into_utterances(cues: list[dict], max_gap: float = 1.2, max_seconds: float = 12.0) -> list[dict]:
+    """Group consecutive same-speaker fragments into utterances for translation and voicing.
+
+    ASR segments break on pauses; translation, synthesis and fitting must instead
+    operate on whole utterances placed over the whole span (pauses included), or
+    sentence fragments get translated out of context and squeezed into slots
+    that were never sized for them.  Word timings are kept for source muting.
+    """
+    merged: list[dict] = []
+    for cue in cues:
+        previous = merged[-1] if merged else None
+        gap = float(cue["start"]) - float(previous["end"]) if previous else None
+        joinable = (
+            previous is not None
+            and previous.get("speaker_id") == cue.get("speaker_id")
+            and not cue.get("overlapping_speech") and not previous.get("overlapping_speech")
+            and bool(cue.get("translation_is_target")) == bool(previous.get("translation_is_target"))
+            and gap is not None and gap <= max_gap
+            and float(cue["end"]) - float(previous["start"]) <= max_seconds
+            and not str(previous.get("source", "")).rstrip().endswith(SENTENCE_END)
+        )
+        if not joinable:
+            item = dict(cue)
+            item["merged_from"] = [int(cue.get("id", len(merged) + 1))]
+            item["words"] = list(cue.get("words") or [])
+            merged.append(item)
+            continue
+        previous["end"] = cue["end"]
+        for key in ("source", "literal_translation", "english", "adapted_dialogue", "faithful_translation"):
+            if previous.get(key) is not None or cue.get(key) is not None:
+                previous[key] = " ".join(part for part in (str(previous.get(key) or "").strip(),
+                                                           str(cue.get(key) or "").strip()) if part)
+        previous["words"] = list(previous.get("words") or []) + list(cue.get("words") or [])
+        previous["mouth_visible"] = bool(previous.get("mouth_visible") or cue.get("mouth_visible"))
+        for key in ("speaker_confidence", "timing_confidence", "transcription_confidence",
+                    "alignment_confidence", "reference_quality"):
+            values = [float(v) for v in (previous.get(key), cue.get(key)) if v is not None]
+            if values:
+                previous[key] = round(min(values), 3)
+        if cue.get("subtitle_end") is not None:
+            previous["subtitle_end"] = cue["subtitle_end"]
+        previous["merged_from"].append(int(cue.get("id", 0)))
+    for number, item in enumerate(merged, 1):
+        item["id"] = number
+        item["utterance"] = True
+        item["nonverbal_filler"] = is_nonverbal_filler(item.get("source", ""))
+        if item["nonverbal_filler"]:
+            # A hesitation that stands alone is performance, not dialogue.
+            item["translation_is_target"] = True
+            for key in ("english", "adapted_dialogue", "literal_translation", "faithful_translation"):
+                item[key] = item.get("source", "")
+        # Measurements taken on the fragments no longer describe the utterance.
+        for key in ("source_performance", "dialogue_leakage", "emotion_vector"):
+            item.pop(key, None)
+    return merged
