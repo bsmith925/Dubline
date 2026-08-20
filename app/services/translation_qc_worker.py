@@ -53,14 +53,18 @@ Pass only when adequacy >= 0.78, names >= 0.85, and no material omission/additio
         ids = [int(cue["id"]) for cue in batch]
         schema = array_of({
             "type": "object",
-            "properties": {"id": {"type": "integer", "enum": ids}, "adequacy": {"type": "number"},
-                           "names": {"type": "number"}, "register": {"type": "number"},
-                           "passed": {"type": "boolean"}, "reason": {"type": "string"}},
-            "required": ["id", "adequacy", "names", "register", "passed", "reason"],
+            # ``reason`` comes first on purpose: the grammar forces the model to state
+            # its evidence before committing to scores, a one-line chain of thought.
+            "properties": {"id": {"type": "integer", "enum": ids}, "reason": {"type": "string"},
+                           "adequacy": {"type": "number"}, "names": {"type": "number"},
+                           "register": {"type": "number"}, "passed": {"type": "boolean"}},
+            "required": ["id", "reason", "adequacy", "names", "register", "passed"],
         }, "verdicts", min_items=len(ids), max_items=len(ids))
         valid: dict[int, dict] = {}
         try:
-            for item in ask_json(llm, prompt, schema, max_tokens=120 + 90 * len(ids))["verdicts"]:
+            for item in ask_json(llm, prompt, schema, max_tokens=120 + 90 * len(ids),
+                                 temperature=settings.translation_qc_temperature,
+                                 top_p=settings.translation_qc_top_p)["verdicts"]:
                 valid.setdefault(int(item["id"]), item)
         except StructuredOutputError as exc:
             print(json.dumps({"warning": f"judge batch failed: {exc}"}), flush=True)
@@ -70,7 +74,7 @@ Pass only when adequacy >= 0.78, names >= 0.85, and no material omission/additio
                 item = {"id": cue["id"], "adequacy": 0.0, "names": 0.0, "register": 0.0,
                         "passed": False, "reason": "independent judge returned no result"}
             item["available"] = True
-            item["model"] = "Qwen3-8B Q4 independent bilingual judge"
+            item["model"] = f"{Path(spec['model']).stem} independent bilingual judge"
             for key in ("adequacy", "names", "register"):
                 item[key] = number(item.get(key))
             item["passed"] = bool(item.get("passed")) and item["adequacy"] >= .78

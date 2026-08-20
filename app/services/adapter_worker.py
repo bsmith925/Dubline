@@ -93,6 +93,7 @@ def choose_candidate(literal: str, candidates: list[str], target: float,
 
 
 TARGET = "English"  # set from the manifest in main(); prompts read it at call time
+SAMPLING = {"temperature": settings.translation_temperature, "top_p": settings.translation_top_p}
 
 
 def judge_candidates(llm, cue: dict, faithful: str, candidates: list[str]) -> list[dict]:
@@ -114,7 +115,7 @@ Candidates:
         "required": ["index", "adequacy", "terminology", "register"],
     }, "scores", min_items=len(values), max_items=len(values))
     try:
-        scored = ask_json(llm, prompt, schema, max_tokens=60 + 40 * len(values))["scores"]
+        scored = ask_json(llm, prompt, schema, max_tokens=60 + 40 * len(values), **SAMPLING)["scores"]
     except StructuredOutputError:
         return []
     return [{"index": int(item["index"]), "adequacy": number(item.get("adequacy")),
@@ -151,7 +152,7 @@ Scene:
         }, "lines", min_items=len(untranslated), max_items=len(untranslated))
         answers: dict[int, str] = {}
         try:
-            for item in ask_json(llm, prompt, schema, max_tokens=200 + 120 * len(untranslated))["lines"]:
+            for item in ask_json(llm, prompt, schema, max_tokens=200 + 120 * len(untranslated), **SAMPLING)["lines"]:
                 answers.setdefault(int(item["line"]), str(item.get("translation") or ""))
         except StructuredOutputError:
             pass
@@ -161,7 +162,7 @@ Scene:
                 single = ask_json(
                     llm, f"Translate to natural {TARGET} only:\n{cues[index].get('source', '')}",
                     {"type": "object", "properties": {"translation": {"type": "string"}}, "required": ["translation"]},
-                    max_tokens=200)
+                    max_tokens=200, **SAMPLING)
                 translated = str(single.get("translation") or "")
             translated = " ".join(str(translated).strip().strip('"').split())
             cues[index]["faithful_translation"] = translated
@@ -198,7 +199,7 @@ Scene context:
         try:
             versions = ask_json(llm, prompt, {
                 "type": "object", "properties": {name: {"type": "string"} for name in names},
-                "required": list(names)}, max_tokens=320)
+                "required": list(names)}, max_tokens=320, **SAMPLING)
         except StructuredOutputError:
             versions = {}
         candidates = list(dict.fromkeys(

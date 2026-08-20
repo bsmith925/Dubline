@@ -158,6 +158,8 @@ def inspect_system() -> dict:
     primary_ready = all((model_dir / name).is_file() for name in ("config.yaml", "gpt.pth", "s2mel.pth", "codec.pth"))
     status["model_ready"] = primary_ready and status["emotion_ready"] and status["aux_models_ready"]
     status["gpu_safety"] = gpu_safety_summary()
+    status["models"] = {"translation": settings.translation_model.name, "translation_qc": settings.translation_qc_model.name,
+                        "tts_primary": "IndexTTS-2.5", "tts_fallback": "Qwen3-TTS-1.7B-Base", "asr": settings.qwen_asr_model.name}
     return status
 
 

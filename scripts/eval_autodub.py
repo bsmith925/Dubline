@@ -186,7 +186,7 @@ def evaluate(url: str, args, client: Client) -> dict:
     if not reference:
         print("  WARNING: no reference transcript available; translation metrics will be skipped")
 
-    options = {"source_language": LANGUAGE_NAMES.get(args.dub_language, "auto"), "target_language": "English",
+    options = {"source_language": LANGUAGE_NAMES.get(args.dub_language, "auto"), "target_language": args.target_language,
                "subtitle_mode": "speech", "audio_mode": "separate", "engine": "indextts", "emotion_mode": "auto",
                "workflow_mode": "automatic", "mastering_preset": args.preset,
                "range_start": start, "range_end": end if args.end else None, "voice_rights_confirmed": True,
@@ -215,8 +215,13 @@ def evaluate(url: str, args, client: Client) -> dict:
     stretches = [abs(float((c.get("qc") or {}).get("stretch_percent") or 0)) for c in cues]
     word_sims = [float((c.get("qc") or {}).get("word_similarity") or 0) for c in cues if (c.get("qc") or {}).get("word_similarity") is not None]
     judge_failed = sum(1 for c in cues if (c.get("translation_qc") or {}).get("available") and not (c.get("translation_qc") or {}).get("passed"))
+    try:
+        models = (client.json("GET", "/api/system") or {}).get("models") or {}
+    except SystemExit:
+        models = {}
     result = {
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"), "video_id": info["id"], "title": title, "url": url,
+        "models": models, "target_language": args.target_language,
         "dub_language": args.dub_language, "range": [start, end], "job_id": job["id"], "status": job["status"],
         "server": client.server, "elapsed_seconds": round(elapsed), "realtime_factor": round(elapsed / max(1, end - start), 2),
         "detected_language": detected.get("language"), "detected_confidence": detected.get("confidence"),
@@ -259,13 +264,14 @@ def evaluate(url: str, args, client: Client) -> dict:
 
 
 def print_table(rows: list[dict]) -> None:
-    cols = [("video_id", 11), ("dub_language", 4), ("status", 12), ("wer", 6), ("chrf", 6), ("content_recall", 7),
+    cols = [("video_id", 11), ("dub_language", 4), ("judge", 14), ("status", 12), ("wer", 6), ("chrf", 6), ("content_recall", 7),
             ("chrf_faithful", 8),
             ("qc_flagged", 5), ("judge_failed", 5), ("mean_abs_stretch_percent", 8), ("integrated_lufs", 7),
             ("true_peak_dbtp", 6), ("realtime_factor", 6)]
     header = " ".join(f"{name[:width]:<{width}}" for name, width in cols)
     print("\n" + header); print("-" * len(header))
     for row in rows:
+        row = {**row, "judge": (row.get("models") or {}).get("translation_qc", "-").replace("-Q4_K_M.gguf", "").replace(".gguf", "")}
         cells = []
         for name, width in cols:
             value = row.get(name)
@@ -282,6 +288,7 @@ def main() -> None:
     ap.add_argument("--list", type=Path, help="file with one URL per line (# comments allowed)")
     ap.add_argument("--server", default="http://127.0.0.1:8000")
     ap.add_argument("--dub-language", default="es", help="auto-dub track to feed Dubline (es, fr, de, it, pt, ja, ...)")
+    ap.add_argument("--target-language", default="English", help="Dubline output language (text metrics assume English)")
     ap.add_argument("--start", default=None); ap.add_argument("--end", default=None)
     ap.add_argument("--preset", default="web", choices=["cinema", "broadcast", "web", "preserve"])
     ap.add_argument("--reference", help="reference English transcript file (overrides YouTube captions)")

@@ -87,6 +87,12 @@ class Settings(BaseSettings):
     translation_model: Path = Path("vendor/hy-mt2-7b/Hy-MT2-7B-Q4_K_M.gguf")
     translation_qc_model: Path = Path("vendor/qwen3-8b/Qwen3-8B-Q4_K_M.gguf")
     dub_llama_gpu_layers: int = -1
+    # Sampling per LLM role. Deterministic by default; Qwen3.x model cards suggest
+    # temperature 0.7 / top_p 0.8 for non-thinking use if you prefer their defaults.
+    translation_temperature: float = Field(default=0.05, ge=0, le=2)
+    translation_top_p: float = Field(default=0.9, ge=0, le=1)
+    translation_qc_temperature: float = Field(default=0.0, ge=0, le=2)
+    translation_qc_top_p: float = Field(default=0.9, ge=0, le=1)
 
     # --- speakers -------------------------------------------------------------
     pyannote_model: Path = Path("vendor/pyannote-community-1")
