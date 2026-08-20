@@ -764,6 +764,7 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                 raise RuntimeError(f"{engine_label} {stage_name} left {len(wanted) - measured} line(s) without "
                                    "timing metrics; refusing to continue with unverifiable takes")
 
+        items_by_cue = {int(item["cue_index"]): item for item in tts_items}
         synthesize(tts_items, "primary synthesis", voice_progress)
         persist_cues(force=True)
 
@@ -793,7 +794,7 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                 fitted_line = fitted / f"{index + 1:06d}.wav"
                 raw.unlink(missing_ok=True)
                 fitted_line.unlink(missing_ok=True)
-                item = dict(tts_items[index])
+                item = dict(items_by_cue[index])
                 cues[index]["spoken_text"] = apply_glossary(cues[index]["english"])
                 item["text"] = cues[index]["spoken_text"]
                 retry_items.append(item)
@@ -836,7 +837,7 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
             for index in word_failures:
                 (generated / f"{index + 1:06d}.wav").unlink(missing_ok=True)
                 (fitted / f"{index + 1:06d}.wav").unlink(missing_ok=True)
-                item = dict(tts_items[index])
+                item = dict(items_by_cue[index])
                 item["text"] = cues[index].get("spoken_text") or apply_glossary(cues[index]["english"])
                 item["use_random"] = True
                 word_retry_items.append(item)
@@ -893,7 +894,7 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
             qwen_items = []
             qwen_metrics: dict[int, dict] = {}
             for index in fallback_failures:
-                item = dict(tts_items[index])
+                item = dict(items_by_cue[index])
                 item["text"] = cues[index].get("spoken_text") or apply_glossary(cues[index]["english"])
                 item.update({"raw": str(qwen_raw / f"{index + 1:06d}.wav"),
                              "fitted": str(qwen_dir / f"{index + 1:06d}.wav"),
