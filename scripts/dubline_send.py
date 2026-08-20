@@ -234,6 +234,9 @@ def main() -> None:
     ap.add_argument("--audio-stream", type=int, help="audio stream index when the file has several")
     ap.add_argument("--subtitle-stream", type=int, help="embedded subtitle stream index")
     ap.add_argument("--out", type=Path, default=Path("."), help="directory for downloaded results")
+    ap.add_argument("--deliver-to", help="server-side folder name under the server's DUB_DELIVERY_DIR to copy "
+                                         "the finished files into (no download needed); use with --no-download")
+    ap.add_argument("--no-download", action="store_true", help="do not download results when the job finishes")
     ap.add_argument("--exports", default="", help="comma list of extra exports: srt,csv,edl,clips,mix,dialogue")
     ap.add_argument("--poll", type=float, default=10, help="status poll interval in seconds")
     ap.add_argument("--no-wait", action="store_true", help="submit and exit")
@@ -262,7 +265,7 @@ def main() -> None:
         "mastering_preset": args.preset, "range_start": parse_time(args.start),
         "range_end": parse_time(args.end), "audio_stream_index": args.audio_stream,
         "subtitle_stream_index": args.subtitle_stream, "voice_rights_confirmed": args.rights,
-        "allow_same_language": args.allow_same_language,
+        "allow_same_language": args.allow_same_language, "delivery_dir": args.deliver_to,
         "glossary": json.loads(args.glossary.read_text(encoding="utf-8")) if args.glossary else {},
     }
     if args.whisper_model:
@@ -302,7 +305,12 @@ def main() -> None:
         print(f"Check later with: {sys.argv[0]} --server {client.server} --job {job['id']} --wait")
         return
     job = wait(client, job["id"], args.poll)
-    fetch_results(client, job, args.out, exports)
+    if job.get("delivered_to"):
+        print(f"Server delivered the finished files to {job['delivered_to']}")
+    if not args.no_download:
+        fetch_results(client, job, args.out, exports)
+    elif job["status"] not in {"complete", "needs_review"}:
+        print(f"Job ended with status '{job['status']}': {job.get('error') or job.get('stage')}")
 
 
 if __name__ == "__main__":

@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     dub_engine: Literal["indextts", "qwen-tts", "preview"] = "indextts"
     dub_workdir: Path = BASE_DIR / "data"
     dub_host: str = "0.0.0.0"
+    # Optional server-side delivery root: finished dubs are copied to
+    # <dub_delivery_dir>/<job delivery_dir or source stem>/ as well as being downloadable.
+    dub_delivery_dir: Path | None = None
     dub_port: int = Field(default=8000, ge=1, le=65535)
     hf_token: str | None = None
 
@@ -142,7 +145,7 @@ class Settings(BaseSettings):
     def _absolute(cls, value: Path) -> Path:
         return _resolve(value)
 
-    @field_validator("indextts_model_dir", "bandit_checkpoint", "musetalk_model_dir", mode="after")
+    @field_validator("indextts_model_dir", "bandit_checkpoint", "musetalk_model_dir", "dub_delivery_dir", mode="after")
     @classmethod
     def _optional_absolute(cls, value: Path | None) -> Path | None:
         return _resolve(value) if value is not None else None

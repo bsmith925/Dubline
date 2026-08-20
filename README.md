@@ -179,6 +179,8 @@ python scripts/dubline_send.py --server http://isengard:8000 --status           
 python scripts/dubline_send.py --server http://isengard:8000 --job <id> --wait --exports srt,mix   # reattach later
 ```
 
+Set `DUB_DELIVERY_DIR` on the server and finished files are also copied there (`--deliver-to <folder>` picks a
+subfolder), which avoids the download step entirely when the server's disk is shared or mounted locally.
 `DUBLINE_SERVER` can be set instead of `--server`. The web UI at the same address works remotely too.
 The server has no authentication — keep it on a trusted LAN or behind a VPN/SSH tunnel
 (`ssh -L 8000:localhost:8000 isengard`).
@@ -194,6 +196,7 @@ Dubline can be configured via environment variables or by creating a `.env` file
 | `DUB_ENGINE` | `indextts` | Primary TTS engine (`indextts` or `qwen-tts`) |
 | `DUB_WORKDIR` | `./data` | Working directory for job stems and temporary files |
 | `DUB_HOST` / `DUB_PORT` | `0.0.0.0` / `8000` | Bind address for `run.sh` |
+| `DUB_DELIVERY_DIR` | *None* | Optional folder that receives a copy of every finished dub, QC report and export |
 | `*_RUNTIME` | auto | Interpreter of each isolated venv; auto-resolves `bin/python` or `Scripts\python.exe` |
 | `DUB_DIARIZATION_DEVICE` | `cuda` | Hardware device for diarization (`cuda` or `cpu`) |
 | `DUB_LLAMA_GPU_LAYERS` | `-1` | Number of GPU layers for LLM adaptation (`-1` = full offload) |

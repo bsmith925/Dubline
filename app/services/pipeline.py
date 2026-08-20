@@ -942,6 +942,10 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
         store.update(job_id, exports=exports)
         log(f"Finished the dubbed Matroska video; QC flagged {cue_qc['flagged_count']} line(s) "
             f"and {len(final_qc['failures'])} delivery issue(s)")
+        delivered = deliver_outputs(job, output, report_html, exports)
+        if delivered:
+            store.update(job_id, delivered_to=str(delivered))
+            log(f"Delivered a copy of the finished dub to {delivered}")
     except PipelineApproval:
         store.update(job_id, active_processing_seconds=round(active_seconds(), 1), active_run_started_at=None)
     except PipelinePause:
@@ -1560,6 +1564,31 @@ def format_duration(seconds: float) -> str:
 
 def target_language_code(language: str) -> str:
     return {"English": "EN", "Chinese": "ZH", "Japanese": "JA", "Spanish": "ES", "Arabic": "AR"}.get(language, "EN")
+
+
+def deliver_outputs(job: dict, output: Path, report_html: Path, exports: dict) -> Path | None:
+    """Copy the deliverables to the configured delivery root, if any.
+
+    Lets a remote client choose the destination up front instead of downloading
+    and moving files afterwards.  The destination is always inside
+    ``settings.dub_delivery_dir``; ``options.delivery_dir`` only names a subfolder.
+    """
+    root = settings.dub_delivery_dir
+    if root is None:
+        return None
+    stem = Path(str(job.get("filename", "dub"))).stem
+    target = (root / (job.get("options", {}).get("delivery_dir") or stem)).resolve()
+    if root.resolve() not in target.parents and target != root.resolve():
+        raise RuntimeError("Delivery folder escapes the configured delivery root")
+    target.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(output, target / f"{stem}.english.dub.mkv")
+    if report_html.is_file():
+        shutil.copy2(report_html, target / f"{stem}.qc.html")
+    for kind, path in (exports or {}).items():
+        source = Path(str(path))
+        if source.is_file():
+            shutil.copy2(source, target / source.name)
+    return target
 
 
 def write_exports(folder: Path, cues: list[dict], dialogue_dir: Path, duration: float) -> dict:

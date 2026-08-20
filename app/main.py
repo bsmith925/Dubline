@@ -607,4 +607,17 @@ def normalized_options(values: dict) -> dict:
                      glossary_values.items() if str(key).strip() and str(value).strip()},
         "voice_rights_confirmed": bool(values.get("voice_rights_confirmed")),
         "allow_same_language": bool(values.get("allow_same_language")),
+        "delivery_dir": delivery_subdir(values.get("delivery_dir")),
     }
+
+
+def delivery_subdir(value) -> str | None:
+    """A folder name under the server's DUB_DELIVERY_DIR; never an arbitrary path."""
+    if value in (None, ""):
+        return None
+    if settings.dub_delivery_dir is None:
+        raise HTTPException(400, "This server has no DUB_DELIVERY_DIR configured, so delivery_dir cannot be used")
+    name = str(value).strip().strip("/\\")
+    if not name or any(part in {"", ".", ".."} for part in name.replace("\\", "/").split("/")):
+        raise HTTPException(400, "delivery_dir must be a relative folder name under the server's delivery root")
+    return name

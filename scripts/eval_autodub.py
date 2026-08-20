@@ -238,7 +238,7 @@ def evaluate(url: str, args, client: Client) -> dict:
         "speakers": sorted({str(c.get("speaker")) for c in cues}),
         "error": job.get("error"),
     }
-    out_dir = EVAL_DIR / "runs" / f"{info['id']}-{args.dub_language}-{job['id']}"
+    out_dir = args.out / f"{info['id']}-{args.dub_language}-{job['id']}"
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "reference.txt").write_text(reference, encoding="utf-8")
     (out_dir / "hypothesis.txt").write_text(hypothesis, encoding="utf-8")
@@ -289,6 +289,7 @@ def main() -> None:
     ap.add_argument("--remote-host", default="isengard", help="ssh host for --remote-prefix")
     ap.add_argument("--poll", type=float, default=15)
     ap.add_argument("--no-download", action="store_true")
+    ap.add_argument("--out", type=Path, default=EVAL_DIR / "runs", help="where per-run folders are written")
     args = ap.parse_args()
     urls = list(args.urls)
     if args.list:

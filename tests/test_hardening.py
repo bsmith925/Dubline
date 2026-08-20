@@ -314,3 +314,25 @@ def test_language_identification_samples_and_same_language_guard():
     assert not same_language({"language": "Spanish", "confidence": 0.99}, "English")
     assert normalized_options({"voice_rights_confirmed": True})["allow_same_language"] is False
     assert normalized_options({"voice_rights_confirmed": True, "allow_same_language": 1})["allow_same_language"] is True
+
+
+def test_delivery_copies_into_the_configured_root_only(tmp_path: Path, monkeypatch):
+    from app.config import settings
+    from app.services.pipeline import deliver_outputs
+    from app.main import delivery_subdir
+    monkeypatch.setattr(settings, "dub_delivery_dir", tmp_path / "out")
+    folder = tmp_path / "job"; folder.mkdir()
+    (folder / "dubbed-english.mkv").write_bytes(b"mkv"); (folder / "qc-report.html").write_text("qc")
+    (folder / "english-dub.srt").write_text("1")
+    job = {"filename": "Film.mkv", "options": {"delivery_dir": "client-choice"}}
+    target = deliver_outputs(job, folder / "dubbed-english.mkv", folder / "qc-report.html",
+                             {"srt": str(folder / "english-dub.srt")})
+    assert target == (tmp_path / "out" / "client-choice").resolve()
+    assert sorted(p.name for p in target.iterdir()) == ["Film.english.dub.mkv", "Film.qc.html", "english-dub.srt"]
+    assert delivery_subdir("films/one") == "films/one"
+    with pytest.raises(HTTPException):
+        delivery_subdir("../escape")
+    monkeypatch.setattr(settings, "dub_delivery_dir", None)
+    assert deliver_outputs(job, folder / "dubbed-english.mkv", folder / "qc-report.html", {}) is None
+    with pytest.raises(HTTPException):
+        delivery_subdir("anything")
