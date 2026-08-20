@@ -302,3 +302,15 @@ def test_remux_preserves_source_stream_identity_and_disposition(tmp_path: Path):
     assert evidence["streams_preserved_exactly"]
     assert evidence["metadata_preserved"]
     assert evidence["english_lossless_track"]
+
+
+def test_language_identification_samples_and_same_language_guard():
+    from app.services.language_id import sample_offsets, same_language
+    assert sample_offsets(20) == [0.0]
+    offsets = sample_offsets(5000)
+    assert len(offsets) == 4 and offsets[0] > 0 and offsets[-1] + 30 <= 5000
+    assert same_language({"language": "English", "confidence": 0.95}, "English")
+    assert not same_language({"language": "English", "confidence": 0.5}, "English")
+    assert not same_language({"language": "Spanish", "confidence": 0.99}, "English")
+    assert normalized_options({"voice_rights_confirmed": True})["allow_same_language"] is False
+    assert normalized_options({"voice_rights_confirmed": True, "allow_same_language": 1})["allow_same_language"] is True

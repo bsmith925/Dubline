@@ -597,4 +597,5 @@ def normalized_options(values: dict) -> dict:
         "glossary": {str(key).strip(): str(value).strip() for key, value in
                      glossary_values.items() if str(key).strip() and str(value).strip()},
         "voice_rights_confirmed": bool(values.get("voice_rights_confirmed")),
+        "allow_same_language": bool(values.get("allow_same_language")),
     }

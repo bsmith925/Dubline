@@ -18,6 +18,7 @@ from app.config import settings
 from app.services.cinematic import recover_roformer, recover_vocals, separate_cinematic_audio
 from app.services.analysis_cache import media_fingerprint, restore_json_artifact, store_json_artifact
 from app.services.gpu_safety import gpu_safety_summary, gpu_stage
+from app.services.language_id import FORCE_LANGUAGE_CONFIDENCE, detect_language, same_language
 from app.services.asr import transcribe_aligned
 from app.services.adapter import adapt_dialogue
 from app.services.dialogue import analyze_performance, build_adaptive_dialogue, measure_dialogue_leakage
@@ -323,6 +324,29 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
             f"{working_audio['language']} · {working_audio['channels']} channel(s)")
         for warning in audio_warnings:
             log(f"Audio-track warning: {warning}")
+
+        update(2.5, "Identifying the spoken language")
+        with gpu_stage(folder, "Whisper language identification", checkpoint, minimum_free_mb=2500):
+            detection = detect_language(source, int(working_audio["index"]), duration, folder, checkpoint,
+                                        options.get("whisper_model"))
+        store.update(job_id, detected_language=detection)
+        runner_up = next((item for item in detection.get("candidates", [])
+                          if item.get("code") != detection.get("code")), None)
+        log(f"Detected spoken language: {detection['language']} ({detection['confidence']:.0%} over "
+            f"{len(detection.get('samples', []))} sample(s))"
+            + (f"; runner-up {runner_up['language']} ({runner_up['confidence']:.0%})" if runner_up else ""))
+        target_language = str(options.get("target_language", "English"))
+        if same_language(detection, target_language):
+            if not options.get("allow_same_language"):
+                raise RuntimeError(
+                    f"The selected soundtrack already appears to be {target_language} "
+                    f"({detection['confidence']:.0%} confidence). Choose a different audio track, or enable "
+                    f"'re-voice same-language audio' to synthesize it again in {target_language} anyway.")
+            log(f"Source already matches the {target_language} target; re-voicing without translation as requested")
+        elif (str(options.get("source_language", "auto")).lower() == "auto"
+              and float(detection.get("confidence") or 0) >= FORCE_LANGUAGE_CONFIDENCE):
+            options["source_language"] = detection["language"]
+            log(f"Transcription language locked to {detection['language']} from the pre-flight identification")
 
         fingerprint = media_fingerprint(original_source, folder)
         store.update(job_id, media_fingerprint=fingerprint)

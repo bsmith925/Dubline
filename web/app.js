@@ -74,7 +74,7 @@ function options() {
     range_start: parseClock($('#rangeStart').value), range_end: parseClock($('#rangeEnd').value),
     audio_stream_index: $('#audioTrack').value === '' ? null : Number($('#audioTrack').value), glossary,
     subtitle_stream_index: $('#subtitleTrack').value === '' ? null : Number($('#subtitleTrack').value),
-    voice_rights_confirmed: $('#voiceRights').checked };
+    voice_rights_confirmed: $('#voiceRights').checked, allow_same_language: $('#allowSameLanguage').checked };
 }
 
 function validateRange() {
@@ -231,7 +231,8 @@ function renderJob(job) {
   $('#jobTitle').textContent = job.filename;
   $('#jobStatus').textContent = labelStatus(job).toUpperCase();
   $('#jobStatus').className = `kicker status-${job.status}`;
-  $('#jobStage').textContent = job.stage || 'Queued';
+  const detected = job.detected_language;
+  $('#jobStage').textContent = (job.stage || 'Queued') + (detected ? ` · ${detected.language} ${Math.round(Number(detected.confidence||0)*100)}%` : '');
   $('#jobPercent').textContent = `${Math.round(progress)}%`;
   if (job.status === 'processing' && job.processing_started_at) {
     const elapsed = Number(job.active_processing_seconds||0) + (job.active_run_started_at ? Date.now()/1000-Number(job.active_run_started_at) : 0);
