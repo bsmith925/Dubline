@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
 import uuid
 import copy
 import time
@@ -255,8 +256,16 @@ async def finalize_upload(job_id: str):
     if by_stem:
         store.update(job_id, uploads=job["uploads"])
     source = next(item for item in job["uploads"] if item["kind"] in {"video", "audio"})
-    uploaded_probe = probe_media(Path(source["path"]))
+    try:
+        uploaded_probe = probe_media(Path(source["path"]))
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or "").strip().splitlines()[-1:] or ["ffprobe could not read the file"]
+        store.update(job_id, status="error", stage="Needs attention", error=f"Unreadable media: {detail[0]}")
+        raise HTTPException(400, f"The uploaded source is not readable media: {detail[0]}") from exc
     tracks = audio_streams(uploaded_probe)
+    if not tracks:
+        store.update(job_id, status="error", stage="Needs attention", error="The source has no audio stream")
+        raise HTTPException(400, "The uploaded source contains no audio stream")
     text_subtitles = [item for item in subtitle_streams(uploaded_probe) if item.get("text")]
     needs_audio = len(tracks) > 1 and job.get("options", {}).get("audio_stream_index") is None
     needs_subtitle = len(text_subtitles) > 1 and job.get("options", {}).get("subtitle_stream_index") is None
