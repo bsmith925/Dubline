@@ -87,7 +87,7 @@ Select the target loudness standard for the delivered English audio track:
 ## Restrictions & Scope
 
 - **Local Video Files Only:** Designed for local DRM-free files. It does not ingest encrypted disc images (ISO/AACS), protected stream URLs, or DRM-wrapped media.
-- **Target Language:** Currently specialized for dubbing foreign-language films into **English**.
+- **Target Language:** Dubs into English, Spanish, Japanese or Chinese with IndexTTS-2.5, and into French, German, Italian, Portuguese, Korean or Russian with Qwen3-TTS (chosen automatically from the target). Dialogue adaptation heuristics (syllable and viseme scoring) are tuned for English and are approximate for other targets.
 - **Hardware Architecture:** Requires an NVIDIA CUDA-capable GPU. CPU inference is supported as a fallback for LLM adaptation, but real-time separation and TTS synthesis require a CUDA device.
 - **Audio Channel Boundaries:** When a discrete 5.1/7.1 M&E bed is provided, it is preserved in the final mix. For stereo sources, the pipeline outputs an enhanced spatialized stereo delivery.
 

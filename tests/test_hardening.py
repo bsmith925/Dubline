@@ -58,7 +58,7 @@ def test_range_options_validate_reverse_range_before_queuing():
 def test_delivery_failures_are_hard_qc_failures():
     media = {
         "video_tracks": 1, "duration_error_ms": 700, "original_audio_preserved": True,
-        "original_subtitles_preserved": True, "english_lossless_track": True,
+        "original_subtitles_preserved": True, "dub_lossless_track": True,
         "integrated_lufs": -19.0, "true_peak_dbtp": -0.2,
     }
     failures = evaluate_media_qc(media, {"target_lufs": -23.0, "true_peak_target_dbtp": -1.0})
@@ -301,7 +301,7 @@ def test_remux_preserves_source_stream_identity_and_disposition(tmp_path: Path):
     evidence = media_qc(output, 1.0, source)
     assert evidence["streams_preserved_exactly"]
     assert evidence["metadata_preserved"]
-    assert evidence["english_lossless_track"]
+    assert evidence["dub_lossless_track"]
 
 
 def test_language_identification_samples_and_same_language_guard():
@@ -323,12 +323,12 @@ def test_delivery_copies_into_the_configured_root_only(tmp_path: Path, monkeypat
     monkeypatch.setattr(settings, "dub_delivery_dir", tmp_path / "out")
     folder = tmp_path / "job"; folder.mkdir()
     (folder / "dubbed-english.mkv").write_bytes(b"mkv"); (folder / "qc-report.html").write_text("qc")
-    (folder / "english-dub.srt").write_text("1")
+    (folder / "dub.srt").write_text("1")
     job = {"filename": "Film.mkv", "options": {"delivery_dir": "client-choice"}}
     target = deliver_outputs(job, folder / "dubbed-english.mkv", folder / "qc-report.html",
-                             {"srt": str(folder / "english-dub.srt")})
+                             {"srt": str(folder / "dub.srt")})
     assert target == (tmp_path / "out" / "client-choice").resolve()
-    assert sorted(p.name for p in target.iterdir()) == ["Film.english.dub.mkv", "Film.qc.html", "english-dub.srt"]
+    assert sorted(p.name for p in target.iterdir()) == ["Film.english.dub.mkv", "Film.qc.html", "dub.srt"]
     assert delivery_subdir("films/one") == "films/one"
     with pytest.raises(HTTPException):
         delivery_subdir("../escape")
@@ -336,3 +336,16 @@ def test_delivery_copies_into_the_configured_root_only(tmp_path: Path, monkeypat
     assert deliver_outputs(job, folder / "dubbed-english.mkv", folder / "qc-report.html", {}) is None
     with pytest.raises(HTTPException):
         delivery_subdir("anything")
+
+
+def test_language_registry_routes_targets_to_a_capable_engine():
+    from app.services.languages import SUPPORTED_TARGETS, iso1, iso2, normalize_language, primary_engine
+    assert normalize_language("fr") == "French" and normalize_language("ENGLISH") == "English"
+    assert iso1("French") == "fr" and iso2("French") == "fra" and iso2("English") == "eng"
+    assert primary_engine("English") == "indextts"
+    assert primary_engine("French") == "qwen-tts"
+    assert primary_engine("English", "qwen-tts") == "qwen-tts"
+    assert "Arabic" in SUPPORTED_TARGETS and "French" in SUPPORTED_TARGETS
+    with pytest.raises(HTTPException):
+        normalized_options({"voice_rights_confirmed": True, "target_language": "Klingon"})
+    assert normalized_options({"voice_rights_confirmed": True, "target_language": "fr"})["target_language"] == "French"

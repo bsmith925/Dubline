@@ -23,7 +23,7 @@ def main() -> None:
     model = whisper.load_model("turbo", download_root=spec["cache"])
     results = []
     for index, item in enumerate(spec["items"]):
-        value = model.transcribe(item["audio"], task="transcribe", language="en",
+        value = model.transcribe(item["audio"], task="transcribe", language=spec.get("language") or None,
                                  fp16=torch.cuda.is_available(), temperature=0, verbose=False,
                                  condition_on_previous_text=False)
         segments = value.get("segments", [])

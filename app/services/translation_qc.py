@@ -12,7 +12,7 @@ from app.services.subprocess_control import controlled_lines, terminate_process
 
 def validate_translations(cues: list[dict], folder: Path,
                           progress: Callable[[float, int], None],
-                          checkpoint: Callable[[], None]) -> list[dict]:
+                          checkpoint: Callable[[], None], target_language: str = "English") -> list[dict]:
     """Run an independent bilingual judge (Qwen3), never the Hy-MT2 generator."""
     model = settings.translation_qc_model
     if not model.is_file():
@@ -22,7 +22,8 @@ def validate_translations(cues: list[dict], folder: Path,
         return cues
     manifest = folder / "translation-qc-manifest.json"
     output = folder / "translation-qc.json"
-    manifest.write_text(json.dumps({"model": str(model), "cues": cues}, ensure_ascii=False), encoding="utf-8")
+    manifest.write_text(json.dumps({"model": str(model), "cues": cues, "target_language": target_language},
+                                   ensure_ascii=False), encoding="utf-8")
     process = subprocess.Popen(
         [sys.executable, "-m", "app.services.translation_qc_worker", "--manifest", str(manifest),
          "--output", str(output)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,

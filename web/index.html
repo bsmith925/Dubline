@@ -55,11 +55,16 @@
             <button class="ghost" id="fullRange" type="button">Full film</button>
           </div>
           <div class="track-card hidden" id="audioTrackRow"><label><span>Working soundtrack</span><select id="audioTrack"></select></label><label class="hidden" id="subtitleTrackLabel"><span>Dialogue subtitles</span><select id="subtitleTrack"></select></label><small>Choose the full programme tracks, not commentary, forced signs, or audio description.</small></div>
+          <div class="track-card"><label><span>Dub into</span><select id="targetLanguage">
+            <option value="English" selected>English</option><option value="French">French</option><option value="German">German</option>
+            <option value="Spanish">Spanish</option><option value="Italian">Italian</option><option value="Portuguese">Portuguese</option>
+            <option value="Japanese">Japanese</option><option value="Korean">Korean</option><option value="Chinese">Chinese</option><option value="Russian">Russian</option>
+          </select></label><small>English, Spanish, Japanese and Chinese use IndexTTS-2.5; other languages are voiced by Qwen3-TTS.</small></div>
           <details class="release-controls">
             <summary>Review and pronunciation controls</summary>
             <div class="control-grid">
               <label class="check-control"><input id="approvalWorkflow" type="checkbox"><span>Pause for transcript and translation review before generating voices</span></label>
-              <label class="check-control"><input id="allowSameLanguage" type="checkbox"><span>Re-voice audio that is already in English instead of stopping (the spoken language is identified before processing)</span></label>
+              <label class="check-control"><input id="allowSameLanguage" type="checkbox"><span>Re-voice audio that is already in the target language instead of stopping (the spoken language is identified before processing)</span></label>
               <label><span>Pronunciation glossary</span><textarea id="glossary" rows="3" placeholder="Sato = Sah-toh&#10;NGINX = engine-ex"></textarea></label>
               <label class="check-control required"><input id="voiceRights" type="checkbox"><span>I confirm I have the necessary rights and permission to dub this media and reproduce its voices.</span></label>
             </div>

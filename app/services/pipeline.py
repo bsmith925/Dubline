@@ -18,6 +18,7 @@ from app.config import settings
 from app.services.cinematic import recover_roformer, recover_vocals, separate_cinematic_audio
 from app.services.analysis_cache import media_fingerprint, restore_json_artifact, store_json_artifact
 from app.services.gpu_safety import gpu_safety_summary, gpu_stage
+from app.services.languages import iso1, iso2, language as language_info, primary_engine
 from app.services.language_id import FORCE_LANGUAGE_CONFIDENCE, detect_language, same_language
 from app.services.asr import transcribe_aligned
 from app.services.adapter import adapt_dialogue
@@ -336,6 +337,9 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
             f"{len(detection.get('samples', []))} sample(s))"
             + (f"; runner-up {runner_up['language']} ({runner_up['confidence']:.0%})" if runner_up else ""))
         target_language = str(options.get("target_language", "English"))
+        voice_engine = primary_engine(target_language, options.get("engine", "indextts"))
+        if voice_engine == "qwen-tts":
+            log(f"{target_language} is outside IndexTTS-2.5's languages; Qwen3-TTS will voice the primary takes")
         if same_language(detection, target_language):
             if not options.get("allow_same_language"):
                 raise RuntimeError(
@@ -468,7 +472,11 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                 speaker_placeholders_changed = True
         if speaker_placeholders_changed:
             cues_path.write_text(json.dumps(cues, indent=2, ensure_ascii=False), encoding="utf-8")
-        update(34, f"Prepared {len(cues)} English voice lines", cues=cues, cue_source=cue_source)
+        for cue in cues:
+            # Workers only know "is this English?"; the job decides the real target.
+            if cue.get("source_language"):
+                cue["translation_is_target"] = (str(cue["source_language"]).lower() == target_language.lower())
+        update(34, f"Prepared {len(cues)} {target_language} voice lines", cues=cues, cue_source=cue_source)
         log(f"Dialogue source: {cue_source}")
         checkpoint()
 
@@ -582,6 +590,7 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                 cues, folder,
                 lambda value, index: update(37.2 + value * 0.7,
                     f"Adapting difficult line {index + 1} of {len(cues)}"), checkpoint,
+                target_language=target_language,
             )
             cues_path.write_text(json.dumps(cues, indent=2, ensure_ascii=False), encoding="utf-8")
         if any("translation_qc" not in cue for cue in cues):
@@ -590,6 +599,7 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                 cues, folder,
                 lambda value, index: update(37.8 + value * .2,
                     f"Independent bilingual QC · line {index + 1} of {len(cues)}"), checkpoint,
+                target_language=target_language,
             )
             cues_path.write_text(json.dumps(cues, indent=2, ensure_ascii=False), encoding="utf-8")
         emotion_mode = options.get("emotion_mode", "auto")
@@ -676,7 +686,7 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                 "emotion_vector": None if source_performance_ok else cue.get("emotion_vector"),
                 "emotion_strength": 0.6 if emotion_mode == "auto" else 0.82,
                 "emotion_audio": str(emotion_reference) if source_performance_ok else None,
-                "language": target_language_code(options.get("target_language", "English")),
+                "language": (language_info(target_language).indextts or "EN") if voice_engine == "indextts" else target_language,
                 "cue_index": index,
             })
 
@@ -699,9 +709,15 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
             update(44 + value * 36, f"Voicing line {completed_index + 1} of {total}",
                    current_cue=completed_index + 1)
 
-        with gpu_stage(folder, "IndexTTS primary synthesis", checkpoint):
-            synthesize_voice_lines({"engine": options.get("engine", "indextts"), "items": tts_items},
-                                   folder, voice_progress, checkpoint)
+        if voice_engine == "qwen-tts":
+            with gpu_stage(folder, "Qwen3-TTS primary synthesis", checkpoint):
+                if not synthesize_qwen_fallback(tts_items, folder, voice_progress, checkpoint):
+                    raise RuntimeError("Qwen3-TTS runtime or model is missing; it is required for "
+                                       f"{target_language} synthesis")
+        else:
+            with gpu_stage(folder, "IndexTTS primary synthesis", checkpoint):
+                synthesize_voice_lines({"engine": options.get("engine", "indextts"), "items": tts_items},
+                                       folder, voice_progress, checkpoint)
         persist_cues(force=True)
 
         timing_failures = [
@@ -719,6 +735,7 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                 cues, folder,
                 lambda value, index: update(80.2 + value * 0.3,
                     f"Rewriting timing outlier {index + 1}"), checkpoint,
+                target_language=target_language,
             )
             for cue in cues:
                 cue.pop("_skip_adaptation", None)
@@ -760,6 +777,7 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                 cues, fitted, folder,
                 lambda value, index: update(80.9 + value * 0.1,
                     f"Verifying spoken words · line {index + 1} of {total}"), checkpoint,
+                language_code=iso1(target_language),
             )
         word_failures = [
             index for index, cue in enumerate(cues)
@@ -802,6 +820,7 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                     cues, fitted, folder,
                     lambda value, index: update(81.3 + value * 0.2,
                         f"Rechecking spoken words · line {index + 1} of {total}"), checkpoint,
+                    language_code=iso1(target_language),
                 )
         # Measure identity before deciding whether the secondary engine is useful;
         # fallback is not limited to pronunciation failures.
@@ -813,6 +832,9 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                 or (float(cue.get("qc", {}).get("speaker_similarity") or 0.0) < .55
                     and float(cue.get("qc", {}).get("active_duration", 0.0)) >= .8))
         ]
+        if fallback_failures and voice_engine == "qwen-tts":
+            log(f"{len(fallback_failures)} difficult line(s) stay on Qwen3-TTS; no second engine speaks {target_language}")
+            fallback_failures = []
         if fallback_failures:
             update(81.45, f"Comparing a second speech engine for {len(fallback_failures)} difficult line(s)")
             qwen_dir = folder / "qwen-fitted"; qwen_raw = folder / "qwen-generated"
@@ -829,7 +851,7 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                 item["text"] = cues[index].get("spoken_text") or apply_glossary(cues[index]["english"])
                 item.update({"raw": str(qwen_raw / f"{index + 1:06d}.wav"),
                              "fitted": str(qwen_dir / f"{index + 1:06d}.wav"),
-                             "language": "English", "cue_index": index})
+                             "language": target_language, "cue_index": index})
                 qwen_items.append(item)
 
             def qwen_progress(event: dict) -> None:
@@ -851,7 +873,7 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                 with gpu_stage(folder, "Whisper alternate-take QC", checkpoint):
                     backtranscribe_lines(qwen_cues, qwen_dir, qwen_qc,
                         lambda value, index: update(81.6 + value * .08,
-                            f"Checking alternative take · line {index + 1} of {total}"), checkpoint)
+                            f"Checking alternative take · line {index + 1} of {total}"), checkpoint, language_code=iso1(target_language))
                 score_speaker_similarity(cues, fitted, speaker_references)
                 score_speaker_similarity(qwen_cues, qwen_dir, speaker_references)
                 for index in fallback_failures:
@@ -908,10 +930,10 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
             log(f"MuseTalk finishing selected {lipsync_summary['selected']} clean visible shot(s); "
                 f"completed {lipsync_summary['completed']}")
         update(95, "Rejoining the full-length video")
-        remux(source, mixed, output, video_override)
+        remux(source, mixed, output, video_override, target_language=target_language)
         update(98, "Verifying the finished film and writing its QC report")
         final_qc = media_qc(
-            output, duration, source, checkpoint,
+            output, duration, source, checkpoint, expected_language=iso2(target_language),
         )
         final_qc["mastering"] = mastering
         final_qc["visual_lipsync"] = lipsync_summary
@@ -925,11 +947,11 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
         for cue in cues:
             cue["status"] = "needs_review" if cue.get("needs_review") else "complete"
         if final_qc["failures"]:
-            stage = f"English dub produced · delivery QC failed ({len(final_qc['failures'])} issue(s))"
+            stage = f"{target_language} dub produced · delivery QC failed ({len(final_qc['failures'])} issue(s))"
         elif cue_qc["flagged_count"]:
-            stage = f"English dub ready · {cue_qc['flagged_count']} line(s) need review"
+            stage = f"{target_language} dub ready · {cue_qc['flagged_count']} line(s) need review"
         else:
-            stage = "English dub ready · QC passed"
+            stage = f"{target_language} dub ready · QC passed"
         final_status = "needs_review" if final_qc["failures"] or cue_qc["flagged_count"] else "complete"
         elapsed = active_seconds()
         throughput = {"wall_seconds": round(elapsed, 1), "media_seconds": round(duration, 3),
@@ -1021,7 +1043,9 @@ def build_cues(source: Path, audio: Path, folder: Path, job: dict, probe: dict, 
     update(28, "Building a source-language dialogue map with word timing")
     cues = transcribe_long_audio(audio, folder, options.get("whisper_model", "turbo"), checkpoint, update,
                                  subtitle_hints=parsed)
-    if parsed and looks_english(parsed, language):
+    # Subtitles can only stand in for the dub text when the target is English:
+    # looks_english() is the only language detector we have for subtitle text.
+    if parsed and str(options.get("target_language", "English")) == "English" and looks_english(parsed, language):
         reconciled = reconcile_subtitles_with_asr(parsed, cues)
         return reconciled, source_label + " · word-aligned to source speech"
     if parsed:
@@ -1033,7 +1057,7 @@ def build_cues(source: Path, audio: Path, folder: Path, job: dict, probe: dict, 
                 evidence = " ".join(str(card["text"]) for card in matching)
                 cue["subtitle_source_evidence"] = evidence
                 cue["source"] = evidence
-        log("The non-English subtitle wording is attached as translation evidence and ASR supplies word timing")
+        log("The subtitle wording is attached as translation evidence and ASR supplies word timing")
     engine = cues[0].get("asr_engine", "Whisper Turbo fallback") if cues else "local ASR"
     return cues, f"{engine} source transcript" + (f" · guided by {source_label}" if source_label else "")
 
@@ -1543,7 +1567,8 @@ def master_audio(premaster: Path, output: Path, dialogue: Path, preset: str) -> 
     return result
 
 
-def remux(source: Path, audio: Path, output: Path, video_override: Path | None = None) -> None:
+def remux(source: Path, audio: Path, output: Path, video_override: Path | None = None,
+          target_language: str = "English") -> None:
     inputs = ["-i", str(source), "-i", str(audio)]
     video_map = "0:v?"
     if video_override and video_override.is_file():
@@ -1552,7 +1577,8 @@ def remux(source: Path, audio: Path, output: Path, video_override: Path | None =
     run("ffmpeg", "-y", "-v", "error", *inputs,
         "-map", video_map, "-map", "1:a:0", "-map", "0:a?", "-map", "0:s?", "-map", "0:d?", "-map", "0:t?",
         "-map_metadata", "0", "-map_chapters", "0", "-c", "copy",
-        "-metadata:s:a:0", "language=eng", "-metadata:s:a:0", "title=English AI Dub · FLAC delivery master",
+        "-metadata:s:a:0", f"language={iso2(target_language)}",
+        "-metadata:s:a:0", f"title={target_language} AI Dub · FLAC delivery master",
         "-disposition:a:0", "0", str(output))
 
 
@@ -1560,10 +1586,6 @@ def format_duration(seconds: float) -> str:
     hours, rest = divmod(round(seconds), 3600)
     minutes, secs = divmod(rest, 60)
     return f"{hours:d}:{minutes:02d}:{secs:02d}"
-
-
-def target_language_code(language: str) -> str:
-    return {"English": "EN", "Chinese": "ZH", "Japanese": "JA", "Spanish": "ES", "Arabic": "AR"}.get(language, "EN")
 
 
 def deliver_outputs(job: dict, output: Path, report_html: Path, exports: dict) -> Path | None:
@@ -1581,7 +1603,7 @@ def deliver_outputs(job: dict, output: Path, report_html: Path, exports: dict) -
     if root.resolve() not in target.parents and target != root.resolve():
         raise RuntimeError("Delivery folder escapes the configured delivery root")
     target.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(output, target / f"{stem}.english.dub.mkv")
+    shutil.copy2(output, target / f"{stem}.{str(job.get('options', {}).get('target_language', 'English')).lower()}.dub.mkv")
     if report_html.is_file():
         shutil.copy2(report_html, target / f"{stem}.qc.html")
     for kind, path in (exports or {}).items():
@@ -1593,7 +1615,7 @@ def deliver_outputs(job: dict, output: Path, report_html: Path, exports: dict) -
 
 def write_exports(folder: Path, cues: list[dict], dialogue_dir: Path, duration: float) -> dict:
     export_dir = folder / "exports"; export_dir.mkdir(exist_ok=True)
-    srt = export_dir / "english-dub.srt"
+    srt = export_dir / "dub.srt"
     write_srt([{"start": cue["start"], "end": cue["end"], "text": cue.get("english", "")}
                for cue in cues], srt)
     csv_path = export_dir / "cues.csv"

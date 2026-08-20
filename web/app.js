@@ -68,7 +68,7 @@ function selectFiles(files) {
 
 function options() {
   const glossary = Object.fromEntries($('#glossary').value.split(/\r?\n/).map(line => line.split(/\s*=\s*/,2)).filter(parts => parts.length === 2 && parts[0] && parts[1]));
-  return { source_language: 'auto', target_language: 'English', subtitle_mode: 'auto',
+  return { source_language: 'auto', target_language: $('#targetLanguage').value || 'English', subtitle_mode: 'auto',
     audio_mode: 'separate', engine: 'indextts', emotion_mode: 'auto',
     workflow_mode: $('#approvalWorkflow').checked ? 'approval' : 'automatic', mastering_preset: 'cinema',
     range_start: parseClock($('#rangeStart').value), range_end: parseClock($('#rangeEnd').value),

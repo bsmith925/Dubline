@@ -49,6 +49,7 @@ def main() -> None:
     args = parser.parse_args()
     spec = json.loads(args.manifest.read_text(encoding="utf-8"))
     cues = spec["cues"]
+    target = str(spec.get("target_language") or "English").upper()
     from llama_cpp import Llama
     gpu_layers = settings.dub_llama_gpu_layers
     llm = Llama(model_path=spec["model"], n_ctx=8192, n_batch=512, n_threads=10,
@@ -71,13 +72,13 @@ def main() -> None:
     for batch in batches:
         lines = "\n".join(
             f"ID {cue['id']}\nSOURCE ({cue.get('source_language') or 'auto'}): {cue.get('source','')}\n"
-            f"FAITHFUL ENGLISH: {cue.get('faithful_translation') or cue.get('literal_translation','')}\n"
-            f"DUB ENGLISH: {cue.get('english','')}"
+            f"FAITHFUL {target}: {cue.get('faithful_translation') or cue.get('literal_translation','')}\n"
+            f"DUB {target}: {cue.get('english','')}"
             for cue in batch
         )
         prompt = f"""You are an independent bilingual film-translation quality checker.
-The translations were created by a different model. Judge SOURCE directly against DUB ENGLISH;
-use FAITHFUL ENGLISH only as secondary evidence. Detect changed facts, polarity, names, relationships,
+The translations were created by a different model. Judge SOURCE directly against DUB {target};
+use FAITHFUL {target} only as secondary evidence. Detect changed facts, polarity, names, relationships,
 omissions, additions, mistranslated idioms and register changes. Do not reward fluency alone.
 Return only a JSON array, one object per ID:
 {{"id":1,"adequacy":0.0,"names":0.0,"register":0.0,"passed":false,"reason":"concise specific reason"}}
@@ -92,8 +93,8 @@ Pass only when adequacy >= 0.78, names >= 0.85, and no material omission/additio
             if int(cue["id"]) in valid:
                 continue
             single_lines = (f"ID {cue['id']}\nSOURCE ({cue.get('source_language') or 'auto'}): {cue.get('source','')}\n"
-                            f"FAITHFUL ENGLISH: {cue.get('faithful_translation') or cue.get('literal_translation','')}\n"
-                            f"DUB ENGLISH: {cue.get('english','')}")
+                            f"FAITHFUL {target}: {cue.get('faithful_translation') or cue.get('literal_translation','')}\n"
+                            f"DUB {target}: {cue.get('english','')}")
             retry = parse_json(ask(llm, prompt.replace(lines, single_lines), max_tokens=600))
             for item in retry:
                 if isinstance(item, dict) and int(item.get("id", -1)) == int(cue["id"]):

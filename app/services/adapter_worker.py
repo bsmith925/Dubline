@@ -110,17 +110,20 @@ def choose_candidate(literal: str, candidates: list[str], target: float,
     return best, confidence
 
 
+TARGET = "English"  # set from the manifest in main(); prompts read it at call time
+
+
 def judge_candidates(llm, cue: dict, faithful: str, candidates: list[str]) -> list[dict]:
     values = list(dict.fromkeys([faithful, *candidates]))
     numbered = "\n".join(f"{i}: {value}" for i, value in enumerate(values))
-    prompt = f"""Judge English dubbing candidates against the source and faithful translation.
+    prompt = f"""Judge {TARGET} dubbing candidates against the source and faithful translation.
 Return only a JSON array with one object per candidate:
 {{"index":0,"adequacy":0.0,"terminology":0.0,"register":0.0}}
 Scores are 0 to 1. Adequacy means all meaning and facts are preserved. Penalize additions,
 omissions, wrong names and changed intent. Terminology covers names and scene terms. Register
 covers tone and relationship. Do not prefer brevity by itself.
 Source: {cue.get('source', '')}
-Faithful English: {faithful}
+Faithful {TARGET}: {faithful}
 Candidates:
 {numbered}"""
     value = json_value(ask(llm, prompt, 420))
@@ -160,7 +163,7 @@ def faithful_pass(llm, cues: list[dict]) -> None:
             continue
         numbered = "\n".join(f"{index}: {cues[index].get('source', '')}" for index in batch)
         wanted = ", ".join(str(index) for index in untranslated)
-        prompt = f"""Translate this complete film scene faithfully into idiomatic English.
+        prompt = f"""Translate this complete film scene faithfully into idiomatic {TARGET}.
 Maintain names, terminology, facts, register, jokes, relationships and continuity across lines.
 Do not shorten for timing and never romanize instead of translating.
 Translate each requested line separately; never merge or split lines.
@@ -185,7 +188,7 @@ Scene:
         for index in untranslated:
             translated = answers.get(index)
             if not translated:
-                translated = ask(llm, f"Translate to natural English only:\n{cues[index].get('source', '')}", 180)
+                translated = ask(llm, f"Translate to natural {TARGET} only:\n{cues[index].get('source', '')}", 180)
             translated = " ".join(str(translated).strip().strip('"').split())
             cues[index]["faithful_translation"] = translated
             cues[index]["literal_translation"] = translated
@@ -212,10 +215,10 @@ def adaptation_pass(llm, cues: list[dict], output: Path) -> None:
         prompt = f"""Adapt one already-translated film line for dubbing. Do not translate it again.
 Return strict JSON with six distinct versions:
 {{"natural":"...","shorter":"...","lip_compatible":"...","rhythmic":"...","literal_short":"...","idiomatic_short":"..."}}
-All values must be idiomatic English, never transliteration. Preserve meaning, names, facts and register.
+All values must be idiomatic {TARGET}, never transliteration. Preserve meaning, names, facts and register.
 {urgency}Target spoken duration: {target:.2f} seconds, roughly {max(1, round(target * 2.65))} words.
 Mouth clearly visible: {bool(cue.get('mouth_visible'))}. Match vowel/syllable rhythm more closely when true.
-Faithful English translation: {faithful}
+Faithful {TARGET} translation: {faithful}
 Scene context:
 {context_text}"""
         candidates = parse_candidates(ask(llm, prompt, 240))
@@ -257,6 +260,8 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     spec = json.loads(args.manifest.read_text(encoding="utf-8")); cues = spec["cues"]
+    global TARGET
+    TARGET = str(spec.get("target_language") or "English")
     from llama_cpp import Llama
     gpu_layers = settings.dub_llama_gpu_layers
     llm = Llama(model_path=spec["model"], n_ctx=8192, n_batch=512, n_threads=10,

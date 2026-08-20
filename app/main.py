@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app.config import settings
+from app.services.languages import SUPPORTED_TARGETS, normalize_language
 from app.services.pipeline import PipelineWorker, inspect_system
 from app.services.subtitles import audio_streams, media_duration, probe_media, subtitle_streams
 from app.store import JobStore
@@ -540,7 +541,8 @@ async def download(job_id: str):
     output = Path(job.get("output_path", ""))
     if job.get("status") not in {"complete", "needs_review"} or not output.is_file():
         raise HTTPException(409, "The dubbed video is not ready")
-    return FileResponse(output, filename=f"{Path(job['filename']).stem}.english.dub.mkv",
+    target = job.get("options", {}).get("target_language", "English").lower()
+    return FileResponse(output, filename=f"{Path(job['filename']).stem}.{target}.dub.mkv",
                         media_type="video/x-matroska")
 
 
@@ -590,10 +592,10 @@ def normalized_options(values: dict) -> dict:
     return {
         "subtitle_mode": subtitle_mode if subtitle_mode in {"auto", "embedded", "sidecar", "speech"} else "auto",
         "audio_mode": audio_mode if audio_mode in {"separate", "duck", "replace"} else "separate",
-        "engine": engine if engine in {"indextts", "preview"} else "indextts",
+        "engine": engine if engine in {"indextts", "qwen-tts", "preview"} else "indextts",
         "emotion_mode": values.get("emotion_mode") if values.get("emotion_mode") in {"auto", "source", "text", "neutral"} else "auto",
         "source_language": str(values.get("source_language", "auto")),
-        "target_language": str(values.get("target_language", "English")),
+        "target_language": validated_target(values.get("target_language", "English")),
         "workflow_mode": values.get("workflow_mode") if values.get("workflow_mode") in {"automatic", "review", "approval"} else "automatic",
         "mastering_preset": values.get("mastering_preset") if values.get("mastering_preset") in {"cinema", "broadcast", "web", "preserve"} else "cinema",
         "whisper_model": str(values.get("whisper_model", settings.whisper_model)),
@@ -609,6 +611,13 @@ def normalized_options(values: dict) -> dict:
         "allow_same_language": bool(values.get("allow_same_language")),
         "delivery_dir": delivery_subdir(values.get("delivery_dir")),
     }
+
+
+def validated_target(value) -> str:
+    name = normalize_language(value)
+    if name not in SUPPORTED_TARGETS:
+        raise HTTPException(400, f"Target language '{value}' is not supported; choose one of {', '.join(SUPPORTED_TARGETS)}")
+    return name
 
 
 def delivery_subdir(value) -> str | None:

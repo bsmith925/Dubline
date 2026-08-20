@@ -10,6 +10,7 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
+from app.config import settings
 from app.services.subprocess_control import controlled_lines, terminate_process
 
 
@@ -35,13 +36,12 @@ def _controlled_capture(command: list[str], checkpoint=None) -> str:
 
 
 def backtranscribe_lines(cues: list[dict], fitted_dir: Path, folder: Path,
-                        progress, checkpoint) -> None:
+                        progress, checkpoint, language_code: str | None = "en") -> None:
     manifest = folder / "qc-asr-manifest.json"
     output = folder / "qc-backtranscription.json"
     items = [{"audio": str(fitted_dir / f"{index:06d}.wav")} for index in range(1, len(cues) + 1)]
-    manifest.write_text(json.dumps({"items": items,
-                                    "cache": str(Path(__import__('os').getenv("WHISPER_CACHE_DIR", "vendor/whisper")).resolve())},
-                                   indent=2), encoding="utf-8")
+    manifest.write_text(json.dumps({"items": items, "cache": str(settings.whisper_cache_dir),
+                                    "language": language_code}, indent=2), encoding="utf-8")
     process = subprocess.Popen(
         [sys.executable, "-m", "app.services.qc_asr_worker", "--manifest", str(manifest), "--output", str(output)],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", bufsize=1,
@@ -245,7 +245,8 @@ def _stream_identity(stream: dict) -> dict:
     }
 
 
-def media_qc(output: Path, expected_duration: float, source: Path | None = None, checkpoint=None) -> dict:
+def media_qc(output: Path, expected_duration: float, source: Path | None = None, checkpoint=None,
+             expected_language: str = "eng") -> dict:
     probe_output = _controlled_capture(
         ["ffprobe", "-v", "error", "-show_entries", "format=duration",
          "-show_chapters", "-show_format", "-show_streams",
@@ -312,9 +313,9 @@ def media_qc(output: Path, expected_duration: float, source: Path | None = None,
         "chapters_preserved": [chapter_signature(item) for item in source_chapters] ==
                               [chapter_signature(item) for item in output_chapters],
         "metadata_preserved": not metadata_missing, "missing_metadata": metadata_missing,
-        "english_lossless_track": any(
+        "dub_lossless_track": any(
             x.get("codec_type") == "audio" and x.get("codec_name") == "flac"
-            and x.get("tags", {}).get("language") == "eng" for x in streams
+            and x.get("tags", {}).get("language") == expected_language for x in streams
         ), **measured,
     }
 
@@ -336,29 +337,29 @@ def evaluate_media_qc(media: dict, mastering: dict) -> list[str]:
         failures.append("chapter timing or chapter metadata changed")
     if not media.get("metadata_preserved"):
         failures.append("source container metadata was not preserved")
-    if not media.get("english_lossless_track"):
-        failures.append("the English dub is not present as an English-labelled FLAC delivery track")
+    if not media.get("dub_lossless_track"):
+        failures.append("the dub is not present as a correctly language-tagged FLAC delivery track")
 
     measured_lufs = media.get("integrated_lufs")
     measured_peak = media.get("true_peak_dbtp")
     if measured_lufs is None or measured_peak is None:
-        failures.append("the delivered English track loudness could not be measured")
+        failures.append("the delivered dub track loudness could not be measured")
     else:
         try:
             if not math.isfinite(float(measured_lufs)) or not math.isfinite(float(measured_peak)):
                 raise ValueError
         except (TypeError, ValueError):
-            failures.append("the delivered English track has invalid loudness measurements")
+            failures.append("the delivered dub track has invalid loudness measurements")
         else:
             peak_target = mastering.get("true_peak_target_dbtp")
             if peak_target is not None and float(measured_peak) > float(peak_target) + .2:
                 failures.append(
-                    f"the English track true peak is {float(measured_peak):.1f} dBTP, above its delivery limit"
+                    f"the dub track true peak is {float(measured_peak):.1f} dBTP, above its delivery limit"
                 )
             target_lufs = mastering.get("target_lufs")
             if target_lufs is not None and abs(float(measured_lufs) - float(target_lufs)) > 1.5:
                 failures.append(
-                    f"the English track loudness is {float(measured_lufs):.1f} LUFS, outside the delivery target"
+                    f"the dub track loudness is {float(measured_lufs):.1f} LUFS, outside the delivery target"
                 )
     if mastering.get("target_dialogue_lufs") is not None:
         after = mastering.get("dialogue_lufs_after_gain")
