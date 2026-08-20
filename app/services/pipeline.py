@@ -706,7 +706,7 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
 
         def voice_progress(event: dict) -> None:
             value = float(event["progress"])
-            completed_index = int(event.get("cue_index", event["index"]))
+            completed_index = int(event["cue_index"] if "cue_index" in event else event["index"])
             for cue_index in range(completed_index + 1):
                 cues[cue_index]["status"] = "voiced"
                 cues[cue_index]["audio"] = f"{cue_index + 1:06d}.wav"
@@ -777,7 +777,7 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                 retry_items.append(item)
 
             def retry_progress(event: dict) -> None:
-                cue_index = int(event.get("cue_index", event["index"]))
+                cue_index = int(event["cue_index"] if "cue_index" in event else event["index"])
                 cues[cue_index]["qc"] = {
                     "tts_attempts": int(event.get("attempts", 1)) + 2,
                     "raw_duration": event.get("raw_duration"),
@@ -819,7 +819,7 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                 word_retry_items.append(item)
 
             def word_retry_progress(event: dict) -> None:
-                cue_index = int(event.get("cue_index", event["index"]))
+                cue_index = int(event["cue_index"] if "cue_index" in event else event["index"])
                 cues[cue_index].setdefault("qc", {}).update({
                     "tts_attempts": int(cues[cue_index].get("qc", {}).get("tts_attempts", 1))
                                     + int(event.get("attempts", 1)),
