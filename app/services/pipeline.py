@@ -1582,7 +1582,9 @@ def remux(source: Path, audio: Path, output: Path, video_override: Path | None =
         "-map_metadata", "0", "-map_chapters", "0", "-c", "copy",
         "-metadata:s:a:0", f"language={iso2(target_language)}",
         "-metadata:s:a:0", f"title={target_language} AI Dub · FLAC delivery master",
-        "-disposition:a:0", "0", str(output))
+        # The dub is the deliverable: flag it default so players pick it. The
+        # original tracks keep their own dispositions untouched (QC checks that).
+        "-disposition:a:0", "default", str(output))
 
 
 def format_duration(seconds: float) -> str:
