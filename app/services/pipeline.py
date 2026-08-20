@@ -624,7 +624,7 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
             log("Approval workflow paused before the lengthy synthesis stage")
             raise PipelineApproval()
 
-        update(42, "Loading IndexTTS in 8 GB VRAM mode")
+        update(42, "Loading Qwen3-TTS for primary synthesis" if voice_engine == "qwen-tts" else "Loading IndexTTS in 8 GB VRAM mode")
         fallback_refs = folder / "references"
         emotion_refs = folder / "emotion-references"
         generated = folder / "generated"
