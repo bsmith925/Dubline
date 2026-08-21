@@ -1,79 +1,72 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
 
-# Environments
-.venv/
-.venv2/
-venv/
-env/
+*$py.class
+*.aac
+*.avi
+*.bin
+# Byte-compiled / optimized / DLL files
+checkpoints/
+*.ckpt
+.coverage
+data/
+desktop.ini
+.DS_Store
+*.engine
 *env/
+.env
+env/
 ENV/
 env.bak/
-venv.bak/
-
-# Local configuration & credentials
-.env
+# Environments
 .env.local
-*.pem
-*.key
-
-# Job data & workspace outputs
-data/
-output/
-scratch/
-temp/
-*.tmp
-
-# Third-party vendor repositories & downloaded models
-vendor/
-checkpoints/
-models/
+eval/corpus/
+eval/results.jsonl
+eval/runs/
+eval/sources/
+# Evaluation artifacts (media, per-run outputs)
+*.flac
+*.gguf
 hf_cache/
-
+htmlcov/
+.idea/
+# Job data & workspace outputs
+*.key
 # Large model weight formats
-*.bin
-*.ckpt
+# Local configuration & credentials
+*.m2ts
+*.m4a
+# Media and stream files
+*.mkv
+models/
+*.mov
+*.mp3
+*.mp4
+.mypy_cache/
+*.ogg
+*.onnx
+# OS & IDE artifacts
+output/
+*.pem
 *.pt
 *.pth
-*.safetensors
-*.gguf
-*.onnx
-*.engine
-
-# Test & coverage caches
+__pycache__/
+*.py[cod]
 .pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.mypy_cache/
 .ruff_cache/
-
-# Media and stream files
-*.wav
-*.flac
-*.mp3
-*.aac
-*.ogg
-*.m4a
-*.mkv
-*.mp4
-*.mov
-*.avi
-*.webm
-*.ts
-*.m2ts
-
-# OS & IDE artifacts
-.DS_Store
+*.safetensors
+scratch/
+*.so
+temp/
+# Test & coverage caches
+# Third-party vendor repositories & downloaded models
 Thumbs.db
-desktop.ini
+*.tmp
+.tox/
+*.ts
+vendor/
+.venv/
+venv/
+.venv2/
+venv.bak/
 .vscode/
-.idea/
-
-# Evaluation artifacts (media, per-run outputs)
-eval/sources/
-eval/runs/
-eval/results.jsonl
+*.wav
+*.webm
