@@ -126,7 +126,7 @@ class Settings(BaseSettings):
     musetalk_max_shots: int = Field(default=0, ge=0)  # 0 = every eligible utterance
     # Lip-sync engine. EXP-LIPSYNC-001 (2026-08-21): LatentSync 1.6 doubled SyncNet confidence and
     # lifted identity 0.79 -> 0.95 vs MuseTalk at 2x runtime / 17.5 GB. Default flips after the suite run.
-    lipsync_engine: Literal["musetalk", "latentsync"] = "musetalk"
+    lipsync_engine: Literal["musetalk", "latentsync"] = "latentsync"
     latentsync_repo: Path = Path("vendor/LatentSync")
     latentsync_runtime: Path = Path("vendor/latentsync-env")
 
