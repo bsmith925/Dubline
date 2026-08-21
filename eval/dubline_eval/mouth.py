@@ -30,7 +30,9 @@ while True:
             pts = max(lms, key=lambda p: (p[:, 0].max() - p[:, 0].min()))
             face_h = float(pts[8, 1] - pts[27, 1])
             rows.append({"t": round(t, 3), "inner": round(float(np.linalg.norm(pts[62] - pts[66])) / max(face_h, 1), 4),
-                         "face_h_px": round(face_h, 1), "faces": len(lms)})
+                         "face_h_px": round(face_h, 1), "faces": len(lms),
+                         "box": [float(pts[:, 0].min() - 0.25 * face_h), float(pts[:, 1].min() - 0.6 * face_h),
+                                 float(pts[:, 0].max() + 0.25 * face_h), float(pts[:, 1].max() + 0.25 * face_h)]})
         else:
             rows.append({"t": round(t, 3), "inner": None, "face_h_px": None, "faces": 0})
     index += 1

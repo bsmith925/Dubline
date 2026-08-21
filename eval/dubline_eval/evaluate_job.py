@@ -15,6 +15,8 @@ from . import audio
 from . import audio as A
 from .metrics.av_sync import score_interval
 from .metrics import engineering as E
+from .metrics.mix import mix_fidelity
+from .metrics.video_fidelity import outside_edit_fidelity
 from .mouth import articulation_intervals, mean_aperture, mouth_series
 from .schema import (ClipRecord, Identity, SourceCharacteristics, SystemMetrics, TranslationMetrics,
                      TTSMetrics, UtteranceRecord, VisualMetrics, VoiceMetrics)
@@ -86,7 +88,10 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
         cue_id = int(cfg.stem.split("-")[1])
         spec = json.loads(cfg.read_text())["task"]
         clip = Path(spec["video_path"])
-        rendered = job_dir / "musetalk-finishing" / "results" / "v15" / spec["result_name"]
+        results_dir = job_dir / "musetalk-finishing" / "results"
+        rendered = next((p for p in (results_dir / "latentsync" / spec["result_name"].replace(".mp4", "-30fps.mp4"),
+                                     results_dir / "latentsync" / spec["result_name"],
+                                     results_dir / "v15" / spec["result_name"]) if p.is_file()), results_dir / "v15" / spec["result_name"])
         probe = lambda p: float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(p)],
                                                capture_output=True, text=True).stdout.strip() or 0)
         lipsync[cue_id] = {"submitted": probe(clip), "rendered": probe(rendered) if rendered.is_file() else None}
@@ -183,6 +188,16 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
     overlaps = E.take_overlaps(job_dir, cues)
     defaults = E.audio_default_tracks(job_dir / "dubbed-english.mkv")
     mos_total = A.total(A.subtract(out_artic, dub_speech)) if out_mouth else None
+    mixfid = (mix_fidelity(job_dir / "working-soundtrack-48k.flac", job_dir / "english-mix.flac", dub_speech, t_end,
+                           source_me=job_dir / "cinema-background.flac") if (job_dir / "english-mix.flac").is_file() else {})
+    # face boxes from the FAN series (inner-lip landmarks are not stored; approximate the face box from face height)
+    boxes = {}
+    for r in src_mouth:
+        if r.get("inner") is not None and (r.get("face_h_px") or 0) >= 50 and r.get("box"):
+            boxes[r["t"]] = r["box"]
+    vidfid = (outside_edit_fidelity(job_dir / "selected-source.mkv", job_dir / "dubbed-english.mkv", ls_intervals, t_end,
+                                    face_boxes=boxes or None, heatmap_out=work / "diff-heatmap.png")
+              if (job_dir / "dubbed-english.mkv").is_file() else {})
     clip = ClipRecord(
         clip_id=clip_id, job_id=job_dir.name, source_fingerprint=_fingerprint(job_dir), target_language=target_language,
         utterance_count=len(records), wall_seconds=throughput.get("wall_seconds"), realtime_factor=throughput.get("realtime_factor"),
@@ -195,6 +210,7 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
         mouth_motion_on_silence_total_s=mos_total, boundary_jump_max_x_median=jumps.get("max_jump_x_median"),
         mouth_sharpness_ratio=(E.mouth_sharpness_ratio(job_dir / "selected-source.mkv", job_dir / "dubbed-english.mkv", ls_intervals, t_end)
                                if ls_intervals else None),
+        mix_fidelity=mixfid, video_fidelity=vidfid,
     )
     timeline = {"t_end": t_end, "source_speech": source_speech, "dub_speech": dub_speech, "source_articulation": src_artic,
                 "output_articulation": out_artic, "mouth_source": src_mouth, "mouth_output": out_mouth,

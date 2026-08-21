@@ -158,6 +158,8 @@ class ClipRecord:
     mouth_motion_on_silence_total_s: float | None = None   # whole timeline, not just inside utterances
     boundary_jump_max_x_median: float | None = None
     mouth_sharpness_ratio: float | None = None
+    mix_fidelity: dict[str, Any] = field(default_factory=dict)      # metrics/mix.py
+    video_fidelity: dict[str, Any] = field(default_factory=dict)    # metrics/video_fidelity.py
     reference_transcript_metrics: dict[str, float] = field(default_factory=dict)  # WER/chrF vs ground truth when known
     paths: dict[str, str] = field(default_factory=dict)                          # rendered outputs for inspection
 
