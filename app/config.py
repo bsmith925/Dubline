@@ -127,6 +127,9 @@ class Settings(BaseSettings):
     # Lip-sync engine. EXP-LIPSYNC-001 (2026-08-21): LatentSync 1.6 doubled SyncNet confidence and
     # lifted identity 0.79 -> 0.95 vs MuseTalk at 2x runtime / 17.5 GB. Default flips after the suite run.
     lipsync_engine: Literal["musetalk", "latentsync"] = "latentsync"
+    # Mastering for the web/broadcast presets: "dynamic" = one-pass loudnorm (current behaviour,
+    # rides gain and lifts near-silence), "linear" = two-pass loudnorm with one static gain.
+    dub_mastering_mode: Literal["dynamic", "linear"] = "dynamic"
     latentsync_repo: Path = Path("vendor/LatentSync")
     latentsync_runtime: Path = Path("vendor/latentsync-env")
 

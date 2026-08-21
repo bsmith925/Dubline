@@ -1683,18 +1683,38 @@ def measured_lufs(path: Path) -> float | None:
         return None
 
 
+def loudnorm_measure(path: Path, target: float, lra: float) -> dict:
+    """First pass of two-pass loudnorm: integrated loudness, true peak, LRA, threshold, offset."""
+    result = subprocess.run(["ffmpeg", "-nostdin", "-hide_banner", "-i", str(path), "-af",
+                             f"loudnorm=I={target}:TP=-1:LRA={lra}:print_format=json", "-f", "null", "-"],
+                            capture_output=True, text=True)
+    text = result.stderr
+    start = text.rfind("{"); end = text.rfind("}")
+    values = json.loads(text[start:end + 1]) if start >= 0 and end > start else {}
+    return {key: values.get(key, "0") for key in ("input_i", "input_tp", "input_lra", "input_thresh", "target_offset")}
+
+
 def master_audio(premaster: Path, output: Path, dialogue: Path, preset: str) -> dict:
     """Apply an explicit delivery preset rather than merely reporting loudness."""
     if preset == "preserve":
         shutil.copyfile(premaster, output)
         premaster.unlink(missing_ok=True)
         return {"preset": "preserve", "target": None, "dialogue_lufs": measured_lufs(dialogue)}
-    if preset == "broadcast":
-        audio_filter = "loudnorm=I=-23:TP=-1:LRA=18,alimiter=limit=0.891:level=0"
-        result = {"preset": "EBU broadcast", "target_lufs": -23.0, "true_peak_target_dbtp": -1.0}
-    elif preset == "web":
-        audio_filter = "loudnorm=I=-16:TP=-1:LRA=11,alimiter=limit=0.891:level=0"
-        result = {"preset": "web", "target_lufs": -16.0, "true_peak_target_dbtp": -1.0}
+    if preset in {"broadcast", "web"}:
+        target, lra = (-23.0, 18) if preset == "broadcast" else (-16.0, 11)
+        result = {"preset": "EBU broadcast" if preset == "broadcast" else "web", "target_lufs": target, "true_peak_target_dbtp": -1.0,
+                  "mastering_mode": settings.dub_mastering_mode}
+        if settings.dub_mastering_mode == "linear":
+            # Two-pass loudnorm: measure, then apply ONE static gain (linear=true). One-pass
+            # loudnorm is a dynamic gain rider that lifts near-silence by tens of dB
+            # (EXP-AUDIO-001: -45 dB stems surfacing at -30 dB in the delivered track).
+            measured = loudnorm_measure(premaster, target, lra)
+            audio_filter = (f"loudnorm=I={target}:TP=-1:LRA={lra}:measured_I={measured['input_i']}:measured_TP={measured['input_tp']}"
+                            f":measured_LRA={measured['input_lra']}:measured_thresh={measured['input_thresh']}"
+                            f":offset={measured['target_offset']}:linear=true,alimiter=limit=0.891:level=0")
+            result["loudnorm_measured"] = measured
+        else:
+            audio_filter = f"loudnorm=I={target}:TP=-1:LRA={lra},alimiter=limit=0.891:level=0"
     else:
         # Cinema/localization preset: set program gain from dialogue-gated content,
         # then protect the full program at -2 dBTP.
