@@ -828,6 +828,54 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
             synthesize(retry_items, "timing retries", retry_progress)
             persist_cues(force=True)
 
+        short_failures = [
+            index for index, cue in enumerate(cues)
+            if not cue.get("nonverbal_filler")
+            and float(cue.get("qc", {}).get("active_fill_percent") or 100.0) < 75.0
+            and float(cue.get("qc", {}).get("raw_duration") or 0.0) < 0.8 * float(cue.get("target_seconds") or 0.0)
+            and float(cue.get("target_seconds") or 0.0) >= 2.0
+        ]
+        if short_failures:
+            # A dub that fills half the actor's speaking time leaves the mouth moving
+            # in silence: as wrong as overrunning. Re-adapt for full length.
+            update(80.6, f"Lengthening {len(short_failures)} line(s) that under-filled their speaking time")
+            short_set = set(short_failures)
+            for index, cue in enumerate(cues):
+                cue["force_adaptation"] = index in short_set
+                cue["too_short"] = index in short_set
+                cue["_skip_adaptation"] = index not in short_set
+            cues = adapt_dialogue(
+                cues, folder,
+                lambda value, index: update(80.6 + value * 0.1, f"Rewriting short line {index + 1}"), checkpoint,
+                target_language=target_language,
+            )
+            fuller_items = []
+            for index in short_failures:
+                (generated / f"{index + 1:06d}.wav").unlink(missing_ok=True)
+                (fitted / f"{index + 1:06d}.wav").unlink(missing_ok=True)
+                item = dict(items_by_cue[index])
+                cues[index]["spoken_text"] = apply_glossary(cues[index]["english"])
+                item["text"] = cues[index]["spoken_text"]
+                fuller_items.append(item)
+
+            def fuller_progress(event: dict) -> None:
+                cue_index = int(event["cue_index"] if "cue_index" in event else event["index"])
+                cues[cue_index]["qc"] = {
+                    "tts_attempts": int(event.get("attempts", 1)) + 2,
+                    "raw_duration": event.get("raw_duration"),
+                    "stretch_percent": event.get("stretch_percent"),
+                    "active_duration": event.get("active_duration"),
+                    "active_fill_percent": event.get("active_fill_percent"),
+                    "padding_ms": event.get("padding_ms"),
+                    "phrase_count": event.get("phrase_count"),
+                    "lengthened_retry": True,
+                }
+                update(80.7 + float(event["progress"]) * 0.2,
+                       f"Resynthesizing lengthened line {cue_index + 1} of {total}", current_cue=cue_index + 1)
+
+            synthesize(fuller_items, "length retries", fuller_progress)
+            persist_cues(force=True)
+
         update(80.9, "Checking generated words against the intended dialogue")
         with gpu_stage(folder, "Whisper spoken-word QC", checkpoint):
             backtranscribe_lines(

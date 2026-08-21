@@ -185,7 +185,7 @@ def test_repeated_active_face_can_split_a_tentative_audio_cluster():
     assert cues[0]["speaker_assignment"].startswith("repeated active face")
 
 
-def test_silence_aware_fit_pads_short_speech_without_slowing(tmp_path: Path):
+def test_silence_aware_fit_pads_short_speech_with_only_gentle_slowing(tmp_path: Path):
     import soundfile as sf
     rate = 24_000
     audio = np.zeros(rate, dtype=np.float32)
@@ -196,7 +196,8 @@ def test_silence_aware_fit_pads_short_speech_without_slowing(tmp_path: Path):
     metrics = fit_audio(source, output, 1.0)
     fitted, fitted_rate = sf.read(output)
     assert fitted_rate == rate and len(fitted) == rate
-    assert metrics["stretch_percent"] == 0
+    assert metrics["stretch_percent"] == 0            # never sped up
+    assert 0 <= metrics["slowdown_percent"] <= 8.0    # at most an inaudible slow-down
     assert metrics["padding_ms"] > 400
 
 
@@ -270,5 +271,5 @@ def test_short_take_phrases_are_spread_across_the_span(tmp_path: Path):
     fitted, _ = sf.read(tmp_path / "fit.wav")
     active = np.abs(fitted) > 1e-3
     last_voiced = np.max(np.nonzero(active)) / rate
-    assert metrics["stretch_percent"] == 0 and abs(len(fitted) / rate - 4.0) < 0.01
+    assert metrics["stretch_percent"] == 0 and metrics["slowdown_percent"] <= 8.0 and abs(len(fitted) / rate - 4.0) < 0.01
     assert last_voiced > 3.0      # speech reaches the end of the span instead of stopping at ~2.3 s

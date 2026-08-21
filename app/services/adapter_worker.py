@@ -196,9 +196,16 @@ def adaptation_pass(llm, cues: list[dict], output: Path) -> None:
             for offset, item in enumerate(context)
         )
         previous_stretch = float(cue.get("qc", {}).get("stretch_percent") or 0.0)
+        previous_fill = float(cue.get("qc", {}).get("active_fill_percent") or 100.0)
+        too_short = bool(cue.get("too_short"))
         timing_limit = 5.0 if cue.get("mouth_visible") else 8.0
         urgency = (f"A previous spoken take was {previous_stretch:.1f}% too long; the shorter choice must be "
                    "materially shorter. " if previous_stretch > timing_limit else "")
+        if too_short:
+            urgency = (f"A previous spoken take filled only {previous_fill:.0f}% of the actor's speaking time. "
+                       "Every version must be FULL length: keep every clause, aside, repetition and emphasis of "
+                       "the faithful translation, and make the 'natural' and 'rhythmic' versions at least as long "
+                       "as it. Do not compress. ")
         prompt = f"""Adapt one already-translated film line for dubbing. Do not translate it again.
 Produce six distinct versions: natural, shorter, lip_compatible, rhythmic, literal_short, idiomatic_short.
 All values must be idiomatic {TARGET}, never transliteration. Preserve meaning, names, facts and register.
@@ -236,6 +243,19 @@ Scene context:
             if shorter:
                 selected = max(shorter)[1]
                 confidence = max(confidence, 0.7)
+        if too_short:
+            required_names = protected_names(faithful)
+            judged = {int(item.get("index", -1)): item for item in semantic if isinstance(item, dict)}
+            fuller = []
+            for candidate_index, candidate in enumerate([faithful, *candidates]):
+                evidence = judged.get(candidate_index, {})
+                adequacy = float(evidence.get("adequacy", 1.0 if candidate_index == 0 else 0.0))
+                if adequacy >= .65 and all(name.lower() in candidate.lower() for name in required_names):
+                    fuller.append((predicted_seconds(candidate), adequacy, candidate))
+            if fuller:
+                # Longest adequate phrasing; the faithful translation is always a candidate.
+                selected = max(fuller)[2]
+                confidence = max(confidence, 0.7)
         cue["translation_candidates"] = candidates
         cue["candidate_semantic_scores"] = semantic
         cue["adaptation_scoring"] = "semantic + terminology + duration + rhythm + viseme"
@@ -244,6 +264,7 @@ Scene context:
         cue["adaptation_attempts"] = 1 + len(candidates)
         cue["adaptation_model"] = "Hy-MT2-7B Q4 · duration pass"
         cue["force_adaptation"] = False
+        cue["too_short"] = False
         output.write_text(json.dumps(cues, ensure_ascii=False, indent=2), encoding="utf-8")
         print(json.dumps({"progress": (position + 1) / max(1, len(difficult)), "index": index,
                           "difficult": len(difficult)}), flush=True)

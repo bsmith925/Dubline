@@ -48,7 +48,7 @@ def active_seconds(path: Path) -> float:
 
 
 def stretch_phrase(values: np.ndarray, rate: int, tempo: float, folder: Path, index: int) -> np.ndarray:
-    if tempo <= 1.005 or len(values) < round(rate * .08):
+    if abs(tempo - 1.0) <= 0.005 or len(values) < round(rate * .08):
         return values.copy()
     source = folder / f"phrase-{index:03d}.wav"; output = folder / f"phrase-{index:03d}-fit.wav"
     sf.write(source, values, rate, subtype="PCM_16")
@@ -59,6 +59,9 @@ def stretch_phrase(values: np.ndarray, rate: int, tempo: float, folder: Path, in
     return result.mean(axis=1)
 
 
+MAX_SLOWDOWN = 1.08  # gentle; beyond this a slowed voice sounds drugged
+
+
 def fit_audio(source: Path, output: Path, target: float) -> dict:
     audio, rate = sf.read(source, dtype="float32", always_2d=True)
     mono = audio.mean(axis=1); start, end, runs = activity(audio, rate)
@@ -66,15 +69,21 @@ def fit_audio(source: Path, output: Path, target: float) -> dict:
     active_frames = sum(run_end - run_start for run_start, run_end in runs)
     active_duration = active_frames / rate
     trimmed = mono[start:end]
-    padding_ms = 0.0; tempo_correction = 0.0
+    padding_ms = 0.0; tempo_correction = 0.0; slowdown = 0.0
     if len(trimmed) <= target_frames:
-        # Natural short delivery: never slow the voice. Spread the phrases across the
-        # span by widening the pauses between them (so speech follows the actor's
-        # mouth activity through the whole line) instead of parking all the slack
-        # as silence at the end.
-        result = np.zeros(target_frames, dtype=np.float32)
-        spare = target_frames - len(trimmed)
+        # Short delivery: first slow the voice very gently (inaudible below ~8%),
+        # then spread the phrases across the span by widening the pauses between
+        # them so speech follows the actor's mouth activity through the line.
         relative_runs = [(a - start, b - start) for a, b in runs]
+        slow = min(MAX_SLOWDOWN, target_frames / max(1, len(trimmed)))
+        if slow > 1.01:
+            with tempfile.TemporaryDirectory(prefix="dubline-slow-") as temp:
+                trimmed = stretch_phrase(trimmed, rate, 1.0 / slow, Path(temp), 0)
+            scale = len(trimmed) / max(1, (relative_runs[-1][1] if relative_runs else len(trimmed)))
+            relative_runs = [(int(a * scale), int(b * scale)) for a, b in relative_runs]
+            slowdown = (slow - 1.0) * 100
+        result = np.zeros(target_frames, dtype=np.float32)
+        spare = max(0, target_frames - len(trimmed))
         lead = min(round(rate * .025), spare)
         if len(relative_runs) >= 2 and spare > lead:
             # Cap how far any single pause may grow so phrasing stays natural.
@@ -127,4 +136,4 @@ def fit_audio(source: Path, output: Path, target: float) -> dict:
     sf.write(output, np.clip(result * .96, -.97, .97), output_rate, subtype="PCM_16")
     return {"active_duration": round(active_duration, 4), "active_fill_percent": round(active_duration / target * 100, 2),
             "padding_ms": round(padding_ms, 1), "phrase_count": len(runs),
-            "stretch_percent": round(tempo_correction, 2)}
+            "stretch_percent": round(tempo_correction, 2), "slowdown_percent": round(slowdown, 2)}
