@@ -12,6 +12,7 @@ import subprocess
 from pathlib import Path
 
 from . import audio
+from .metrics.av_sync import score_interval
 from .mouth import articulation_intervals, mean_aperture, mouth_series
 from .schema import (ClipRecord, Identity, SourceCharacteristics, SystemMetrics, TranslationMetrics,
                      TTSMetrics, UtteranceRecord, VisualMetrics, VoiceMetrics)
@@ -111,6 +112,11 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
         speech_on_static = audio.total(audio.subtract(audio.clip(span_dub_speech, start, end), span_out_artic)) if lipsync_applied and out_mouth else None
         coverage = (audio.total(audio.intersect(span_dub_speech, span_src_artic)) / audio.total(span_src_artic)
                     if span_src_artic else None)
+        sync = {}
+        if cue.get("mouth_visible") and (visual.get("visible_faces") == 1) and runtimes.get("syncnet_repo") and end - start >= 1.0:
+            sync = score_interval(job_dir / "dubbed-english.mkv", job_dir / "selected-source.mkv", start, end - start,
+                                  work / "sync", runtimes["syncnet_repo"], runtimes["musetalk"], f"u{int(cue['id']):03d}")
+        so, ss = sync.get("output", {}), sync.get("source", {})
         src_words = len(cue.get("words") or []) or len(str(cue.get("source", "")).split())
         tgt_words = len(str(cue.get("english", "")).split())
         records.append(UtteranceRecord(
@@ -146,7 +152,9 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
                 lipsync_model=q.get("visual_lipsync"), lipsync_applied=lipsync_applied, lipsync_skip_reason=q.get("visual_lipsync_skipped"),
                 lipsync_interval=lipsync_interval,
                 lipsync_clip_length_ratio=(round(ls["rendered"] / ls["submitted"], 3) if ls and ls.get("rendered") and ls.get("submitted") else None),
-                sync_confidence=None, sync_offset_frames=None,
+                sync_lse_c=so.get("lse_c"), sync_lse_d=so.get("lse_d"), sync_offset_frames=so.get("offset_frames"),
+                source_lse_c=ss.get("lse_c"), source_lse_d=ss.get("lse_d"), source_offset_frames=ss.get("offset_frames"),
+                delta_lse_c=sync.get("delta_lse_c"), delta_lse_d=sync.get("delta_lse_d"),
                 mouth_motion_on_silence=motion_on_silence, speech_on_static_mouth=speech_on_static,
                 coverage_articulation=round(coverage, 3) if coverage is not None else None,
                 identity_similarity_delta=None,

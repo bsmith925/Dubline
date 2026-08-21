@@ -28,6 +28,7 @@ def main() -> None:
     r.add_argument("--musetalk-runtime", type=Path, default=ROOT / "vendor/musetalk-env/bin/python")
     r.add_argument("--main-runtime", type=Path, default=ROOT / "vendor/index-tts/.venv/bin/python")
     r.add_argument("--whisper-cache", type=Path, default=ROOT / "vendor/whisper")
+    r.add_argument("--syncnet-repo", type=Path, default=ROOT / "vendor/syncnet_python")
     c = sub.add_parser("compare", help="compare two run bundles")
     c.add_argument("baseline", type=Path); c.add_argument("candidate", type=Path)
     c.add_argument("--out", type=Path)
@@ -36,7 +37,8 @@ def main() -> None:
         from .runner import run
         jobs = dict(pair.split("=", 1) for pair in args.jobs) or None
         run(args.suite, args.server, args.jobs_root, args.out,
-            {"musetalk": args.musetalk_runtime, "main": args.main_runtime, "whisper_cache": args.whisper_cache},
+            {"musetalk": args.musetalk_runtime, "main": args.main_runtime, "whisper_cache": args.whisper_cache,
+             "syncnet_repo": args.syncnet_repo if (args.syncnet_repo / "run_syncnet.py").is_file() else None},
             job_ids=jobs, notes=args.notes, mouth_fps=args.mouth_fps)
     else:
         from .compare import compare

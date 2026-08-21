@@ -21,6 +21,11 @@ METRICS: dict[str, tuple[tuple[str, ...], bool]] = {
     "speech_on_static_mouth_s": (("visual", "speech_on_static_mouth"), False),
     "lipsync_clip_length_ratio_err": (("visual", "lipsync_clip_length_ratio"), False),
     "aperture_ratio": (("visual", "aperture_ratio"), True),
+    "sync_lse_c": (("visual", "sync_lse_c"), True),
+    "sync_lse_d": (("visual", "sync_lse_d"), False),
+    "delta_lse_c_vs_source": (("visual", "delta_lse_c"), True),
+    "delta_lse_d_vs_source": (("visual", "delta_lse_d"), False),
+    "sync_offset_abs_frames": (("visual", "sync_offset_frames"), False),
     "retries": (("system", "retries"), False),
 }
 
@@ -39,6 +44,8 @@ def value(record: dict, path: tuple[str, ...]):
         node = node.get(key)
     if path[-1] == "lipsync_clip_length_ratio" and node is not None:
         return abs(float(node) - 1.0)
+    if path[-1] == "sync_offset_frames" and node is not None:
+        return abs(float(node))
     return node
 
 

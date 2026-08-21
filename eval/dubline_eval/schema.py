@@ -95,8 +95,14 @@ class VisualMetrics:
     lipsync_skip_reason: str | None
     lipsync_interval: list[float] | None        # [start, end] actually rendered
     lipsync_clip_length_ratio: float | None     # rendered clip duration / submitted duration (1.0 expected)
-    sync_confidence: float | None               # LSE-C-style, relative to source when available
-    sync_offset_frames: float | None
+    sync_lse_c: float | None                    # output shot (SyncNet confidence, higher better)
+    sync_lse_d: float | None                    # output shot (min distance, lower better)
+    sync_offset_frames: float | None            # output shot
+    source_lse_c: float | None                  # same shot of the source
+    source_lse_d: float | None
+    source_offset_frames: float | None
+    delta_lse_c: float | None                   # output - source (positive = better than source)
+    delta_lse_d: float | None                   # output - source (negative = better than source)
     mouth_motion_on_silence: float | None       # seconds of articulation while target speech is silent
     speech_on_static_mouth: float | None        # seconds of target speech while mouth is static
     coverage_articulation: float | None         # target-speech time overlapping source articulation / source articulation time
