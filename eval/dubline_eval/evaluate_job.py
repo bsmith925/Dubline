@@ -12,7 +12,9 @@ import subprocess
 from pathlib import Path
 
 from . import audio
+from . import audio as A
 from .metrics.av_sync import score_interval
+from .metrics import engineering as E
 from .mouth import articulation_intervals, mean_aperture, mouth_series
 from .schema import (ClipRecord, Identity, SourceCharacteristics, SystemMetrics, TranslationMetrics,
                      TTSMetrics, UtteranceRecord, VisualMetrics, VoiceMetrics)
@@ -155,6 +157,10 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
                 sync_lse_c=so.get("lse_c"), sync_lse_d=so.get("lse_d"), sync_offset_frames=so.get("offset_frames"),
                 source_lse_c=ss.get("lse_c"), source_lse_d=ss.get("lse_d"), source_offset_frames=ss.get("offset_frames"),
                 delta_lse_c=sync.get("delta_lse_c"), delta_lse_d=sync.get("delta_lse_d"),
+                sync_low_conf_fraction=so.get("low_conf_fraction"),
+                mouth_sharpness_ratio=(E.mouth_sharpness_ratio(job_dir / "selected-source.mkv", job_dir / "dubbed-english.mkv",
+                                                               [lipsync_interval], t_end) if lipsync_applied and lipsync_interval else None),
+                boundary_jump_x_median=None,
                 mouth_motion_on_silence=motion_on_silence, speech_on_static_mouth=speech_on_static,
                 coverage_articulation=round(coverage, 3) if coverage is not None else None,
                 identity_similarity_delta=None,
@@ -165,6 +171,18 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
         ))
 
     throughput = job.get("throughput") or {}
+    ls_intervals = [r.visual.lipsync_interval for r in records if r.visual.lipsync_interval]
+    jumps = E.boundary_jumps(job_dir / "dubbed-english.mkv", ls_intervals, t_end) if ls_intervals and (job_dir / "dubbed-english.mkv").is_file() else {}
+    for r in records:
+        if r.visual.lipsync_interval:
+            a, b = r.visual.lipsync_interval
+            mine = [e["jump_x_median"] for e in jumps.get("edges", []) if abs(e["t"] - a) < 0.05 or abs(e["t"] - b) < 0.05]
+            r.visual.boundary_jump_x_median = max(mine) if mine else None
+    dead = E.dead_air(job_dir / "working-soundtrack-48k.flac", job_dir / "english-mix.flac", t_end) if (job_dir / "english-mix.flac").is_file() else {}
+    unmuted = E.unmuted_source_speech(job_dir / "cinema-dialogue.flac", cues, t_end)
+    overlaps = E.take_overlaps(job_dir, cues)
+    defaults = E.audio_default_tracks(job_dir / "dubbed-english.mkv")
+    mos_total = A.total(A.subtract(out_artic, dub_speech)) if out_mouth else None
     clip = ClipRecord(
         clip_id=clip_id, job_id=job_dir.name, source_fingerprint=_fingerprint(job_dir), target_language=target_language,
         utterance_count=len(records), wall_seconds=throughput.get("wall_seconds"), realtime_factor=throughput.get("realtime_factor"),
@@ -172,6 +190,11 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
         lipsync_rendered=sum(1 for r in records if r.visual.lipsync_applied), lipsync_eligible=sum(1 for r in records if r.visual.lipsync_applied or (r.visual.lipsync_skip_reason is None)),
         video_identity_preserved=qc_report.get("streams_preserved_exactly"),
         paths={"mkv": str(job_dir / "dubbed-english.mkv"), "voice": str(job_dir / "english-dialogue.flac"), "job": str(job_dir)},
+        dead_air_seconds=dead.get("seconds"), unmuted_source_speech_seconds=unmuted.get("seconds"),
+        take_overlap_seconds=overlaps.get("seconds"), default_audio_streams=defaults.get("default_audio_streams"),
+        mouth_motion_on_silence_total_s=mos_total, boundary_jump_max_x_median=jumps.get("max_jump_x_median"),
+        mouth_sharpness_ratio=(E.mouth_sharpness_ratio(job_dir / "selected-source.mkv", job_dir / "dubbed-english.mkv", ls_intervals, t_end)
+                               if ls_intervals else None),
     )
     timeline = {"t_end": t_end, "source_speech": source_speech, "dub_speech": dub_speech, "source_articulation": src_artic,
                 "output_articulation": out_artic, "mouth_source": src_mouth, "mouth_output": out_mouth,

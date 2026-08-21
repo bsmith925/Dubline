@@ -26,6 +26,9 @@ METRICS: dict[str, tuple[tuple[str, ...], bool]] = {
     "delta_lse_c_vs_source": (("visual", "delta_lse_c"), True),
     "delta_lse_d_vs_source": (("visual", "delta_lse_d"), False),
     "sync_offset_abs_frames": (("visual", "sync_offset_frames"), False),
+    "sync_low_conf_fraction": (("visual", "sync_low_conf_fraction"), False),
+    "mouth_sharpness_ratio": (("visual", "mouth_sharpness_ratio"), True),
+    "boundary_jump_x_median": (("visual", "boundary_jump_x_median"), False),
     "retries": (("system", "retries"), False),
 }
 
@@ -74,10 +77,12 @@ def write_summary(bundle: Path) -> None:
              f"suite `{run['suite']}` · commit `{run['git_commit']}` · config `{run['config_hash']}` · models: "
              + ", ".join(f"{k}={v}" for k, v in (run.get('models') or {}).items()), "",
              f"{len(clips)} clip(s), {len(utts)} utterance(s)", "", "## Clips", "",
-             "| clip | job | utterances | wall s | rt factor | delivery QC | lip-sync rendered | LUFS | dBTP |", "|---|---|---|---|---|---|---|---|---|"]
+             "| clip | job | utt | wall s | QC | lip-sync | dead air s | unmuted src s | take overlap s | default audio | mouth-on-silence total s | boundary jump max | sharpness |",
+             "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for c in clips:
-        lines.append(f"| {c['clip_id']} | {c['job_id']} | {c['utterance_count']} | {c.get('wall_seconds')} | {c.get('realtime_factor')} | "
-                     f"{c.get('delivery_qc_passed')} | {c['lipsync_rendered']} | {c.get('integrated_lufs')} | {c.get('true_peak_dbtp')} |")
+        lines.append(f"| {c['clip_id']} | {c['job_id']} | {c['utterance_count']} | {c.get('wall_seconds')} | {c.get('delivery_qc_passed')} | {c['lipsync_rendered']} | "
+                     f"{c.get('dead_air_seconds')} | {c.get('unmuted_source_speech_seconds')} | {c.get('take_overlap_seconds')} | {c.get('default_audio_streams')} | "
+                     f"{c.get('mouth_motion_on_silence_total_s')} | {c.get('boundary_jump_max_x_median')} | {c.get('mouth_sharpness_ratio')} |")
     lines += ["", "## Utterance metrics (raw distributions)", "", "| metric | n | mean | median | p90 | max | min |", "|---|---|---|---|---|---|---|"]
     for name, s in summary.items():
         lines.append(f"| {name} | {s['n']} | {s['mean']} | {s['median']} | {s['p90']} | {s['max']} | {s['min']} |")

@@ -32,10 +32,21 @@ def _syncnet(clip: Path, repo: Path, runtime: Path, work: Path, reference: str) 
     tracks = []
     for block in re.findall(r"AV offset:\s*(-?\d+)\s*.*?Min dist:\s*([\d.]+)\s*.*?Confidence:\s*([\d.]+)", text, re.S):
         tracks.append({"offset_frames": int(block[0]), "lse_d": float(block[1]), "lse_c": float(block[2])})
+    # Framewise confidence (medfilt'd) is logged as an array; fraction of frames below 1.0
+    # captures local desync that the clip-level median hides.
+    low_fraction = None
+    arrays = re.findall(r"Framewise conf:\s*\n?(\[[^\]]*\])", text, re.S)
+    if arrays:
+        try:
+            values = [float(v) for v in re.findall(r"-?\d+\.\d+|-?\d+", arrays[-1])]
+            if values:
+                low_fraction = round(sum(1 for v in values if v < 1.0) / len(values), 3)
+        except ValueError:
+            pass
     if not tracks:
         return {"error": text[-400:] or "no face track"}
     best = max(tracks, key=lambda t: t["lse_c"])      # the speaking track is the confident one
-    return {**best, "tracks": len(tracks)}
+    return {**best, "tracks": len(tracks), "low_conf_fraction": low_fraction}
 
 
 def score_interval(output_video: Path, source_video: Path, start: float, duration: float, work: Path,

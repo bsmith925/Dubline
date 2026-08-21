@@ -48,8 +48,17 @@ def mouth_series(video: Path, runtime: Path, t_max: float, fps: float = 15.0, ca
     return json.loads(out.read_text())
 
 
-def articulation_intervals(series: list[dict], window: float = 0.2, min_face_px: float = 50.0) -> list[list[float]]:
-    """Intervals where the mouth is moving: local aperture variance above the clip's 30th percentile."""
+ARTICULATION_STD = 0.012   # aperture (inner-lip gap / face height) std over a 200 ms window
+
+
+def articulation_intervals(series: list[dict], window: float = 0.2, min_face_px: float = 50.0,
+                           threshold: float = ARTICULATION_STD) -> list[list[float]]:
+    """Intervals where the mouth is articulating: local aperture std above an absolute threshold.
+
+    An absolute threshold (not a per-clip percentile) so a lively face is not "always
+    active" and a still face is not "always moving"; 0.012 ≈ a 1.2%-of-face-height
+    open/close within 200 ms, calibrated on the gingerBill talking-head baselines.
+    """
     rows = [r for r in series if r.get("inner") is not None and (r.get("face_h_px") or 0) >= min_face_px]
     if len(rows) < 5:
         return []
@@ -57,8 +66,7 @@ def articulation_intervals(series: list[dict], window: float = 0.2, min_face_px:
     dt = np.median(np.diff(t)) if len(t) > 1 else 1 / 15
     k = max(3, int(round(window / dt)))
     motion = np.array([a[max(0, i - k // 2): i + k // 2 + 1].std() for i in range(len(a))])
-    floor = np.percentile(motion, 30)
-    active = motion > max(floor, 1e-3) * 1.5
+    active = motion > threshold
     intervals = []
     start = None
     for i, flag in enumerate(active):

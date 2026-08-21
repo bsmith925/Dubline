@@ -103,6 +103,9 @@ class VisualMetrics:
     source_offset_frames: float | None
     delta_lse_c: float | None                   # output - source (positive = better than source)
     delta_lse_d: float | None                   # output - source (negative = better than source)
+    sync_low_conf_fraction: float | None        # share of frames with framewise SyncNet confidence < 1
+    mouth_sharpness_ratio: float | None         # lip-synced mouth region sharpness / source (1 = as sharp)
+    boundary_jump_x_median: float | None        # max frame change at this shot's clip edges ÷ clip median
     mouth_motion_on_silence: float | None       # seconds of articulation while target speech is silent
     speech_on_static_mouth: float | None        # seconds of target speech while mouth is static
     coverage_articulation: float | None         # target-speech time overlapping source articulation / source articulation time
@@ -148,6 +151,13 @@ class ClipRecord:
     lipsync_rendered: int
     lipsync_eligible: int
     video_identity_preserved: bool | None
+    dead_air_seconds: float | None = None                  # final mix silent where source was audible
+    unmuted_source_speech_seconds: float | None = None
+    take_overlap_seconds: float | None = None
+    default_audio_streams: int | None = None               # should be exactly 1
+    mouth_motion_on_silence_total_s: float | None = None   # whole timeline, not just inside utterances
+    boundary_jump_max_x_median: float | None = None
+    mouth_sharpness_ratio: float | None = None
     reference_transcript_metrics: dict[str, float] = field(default_factory=dict)  # WER/chrF vs ground truth when known
     paths: dict[str, str] = field(default_factory=dict)                          # rendered outputs for inspection
 
