@@ -1508,7 +1508,10 @@ def render_timeline(cues: list[dict], fitted_dir: Path, output: Path, duration: 
                 continue  # the original hesitation stays audible; its take is silence
             spans = [(float(word["start"]), float(word["end"])) for word in cue.get("words", [])
                      if word.get("start") is not None and word.get("end") is not None]
-            if not spans:
+            if not spans or settings.dub_mute_whole_utterance:
+                # EXP-AUDIO-003: a re-voiced utterance is replaced wholesale. Word-span muting
+                # leaves any vocalization the aligner attached to no word (hesitations, lengthened
+                # vowels) audible under the dub, e.g. an "uhh" at 18.2 s under "critiquer".
                 spans = [(float(cue["start"]), float(cue["end"]))]
             for span_start, span_end in spans:
                 left = max(0, round((span_start - .035) * SAMPLE_RATE))

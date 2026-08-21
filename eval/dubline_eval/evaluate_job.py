@@ -119,6 +119,9 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
         speech_on_static = audio.total(audio.subtract(audio.clip(span_dub_speech, start, end), span_out_artic)) if lipsync_applied and out_mouth else None
         coverage = (audio.total(audio.intersect(span_dub_speech, span_src_artic)) / audio.total(span_src_artic)
                     if span_src_artic else None)
+        matched_take = job_dir / "acoustically-matched" / f"{int(cue['id']):06d}.wav"
+        resid = (E.source_residual_under_take(job_dir / "english-dialogue.flac", matched_take, start)
+                 if matched_take.is_file() and (job_dir / "english-dialogue.flac").is_file() and not cue.get("nonverbal_filler") else {})
         sync = {}
         if cue.get("mouth_visible") and (visual.get("visible_faces") == 1) and runtimes.get("syncnet_repo") and end - start >= 1.0:
             sync = score_interval(job_dir / "dubbed-english.mkv", job_dir / "selected-source.mkv", start, end - start,
@@ -166,6 +169,8 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
                 mouth_sharpness_ratio=(E.mouth_sharpness_ratio(job_dir / "selected-source.mkv", job_dir / "dubbed-english.mkv",
                                                                [lipsync_interval], t_end) if lipsync_applied and lipsync_interval else None),
                 boundary_jump_x_median=None,
+                source_residual_under_take_db=resid.get("max_window_db"),
+                source_residual_seconds_above_50db=resid.get("seconds_above_-50db"),
                 mouth_motion_on_silence=motion_on_silence, speech_on_static_mouth=speech_on_static,
                 coverage_articulation=round(coverage, 3) if coverage is not None else None,
                 identity_similarity_delta=None,

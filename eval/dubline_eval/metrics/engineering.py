@@ -120,3 +120,28 @@ def audio_default_tracks(video: Path) -> dict:
     audio_streams = [s for s in data.get("streams", []) if s.get("codec_type") == "audio"]
     return {"audio_streams": len(audio_streams),
             "default_audio_streams": sum(1 for s in audio_streams if (s.get("disposition") or {}).get("default"))}
+
+
+def source_residual_under_take(stem: Path, take: Path, start: float, window: float = 0.1) -> dict:
+    """Least-squares residual of the rendered voice stem against the placed take.
+
+    Inside a re-voiced utterance the stem should be the take and nothing else; energy
+    left after removing the best-gain copy of the take is source audio that survived
+    muting (hesitations, lengthened vowels the aligner attached to no word).
+    """
+    import soundfile as sf
+    s, r = sf.read(stem, dtype="float32", always_2d=True); s = s.mean(axis=1)
+    t, rt = sf.read(take, dtype="float32", always_2d=True); t = t.mean(axis=1)
+    if r != rt:
+        return {"error": "rate mismatch"}
+    a = int(start * r); seg = s[a:a + len(t)]; n = min(len(seg), len(t)); seg, t = seg[:n], t[:n]
+    if n < r * 0.2:
+        return {"residual_db": None}
+    g = float(np.dot(seg, t) / (np.dot(t, t) + 1e-9)); resid = seg - g * t
+    db = lambda x: float(20 * np.log10(np.sqrt(np.mean(x * x) + 1e-12) + 1e-9))
+    step = max(1, int(window * r)); frames = [resid[i:i + step] for i in range(0, n - step, step)]
+    levels = [db(f) for f in frames if len(f) == step]
+    loud = [(round(start + i * window, 2), round(l, 1)) for i, l in enumerate(levels) if l > -50]
+    return {"gain": round(g, 3), "residual_db": round(db(resid), 1), "take_db": round(db(g * t), 1),
+            "max_window_db": round(max(levels), 1) if levels else None,
+            "seconds_above_-50db": round(sum(1 for l in levels if l > -50) * window, 2), "loud_windows": loud[:12]}
