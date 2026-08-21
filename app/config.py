@@ -110,6 +110,9 @@ class Settings(BaseSettings):
     # "xvector" (speaker embedding only) keeps the target language native. "auto" picks
     # xvector when dubbing across languages and icl when re-voicing the same language.
     qwen_tts_clone_mode: Literal["auto", "icl", "xvector"] = "auto"
+    # Experiment flag (eval-driven): re-adapt and re-voice utterances whose take
+    # filled under 75% of their span. Default = current behaviour.
+    dub_lengthen_short_takes: bool = True
 
     # --- MuseTalk lip-sync (optional) ----------------------------------------
     musetalk_enabled: bool = True

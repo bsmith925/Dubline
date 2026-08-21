@@ -749,12 +749,18 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                 "active_fill_percent": event.get("active_fill_percent"),
                 "padding_ms": event.get("padding_ms"),
                 "phrase_count": event.get("phrase_count"),
+                "slowdown_percent": event.get("slowdown_percent"),
             }
             persist_cues(completed_index)
             update(44 + value * 36, f"Voicing line {completed_index + 1} of {total}",
                    current_cue=completed_index + 1)
 
         engine_label = "Qwen3-TTS" if voice_engine == "qwen-tts" else "IndexTTS"
+        store.update(job_id, synthesis={
+            "engine": engine_label,
+            "clone_mode": (settings.qwen_tts_clone_mode if voice_engine == "qwen-tts" else "indextts-reference"),
+            "lengthen_short_takes": settings.dub_lengthen_short_takes,
+        })
 
         def synthesize(items: list[dict], stage_name: str, progress: Callable[[dict], None]) -> None:
             """Voice ``items`` with the engine chosen for the target language (all passes)."""
@@ -819,6 +825,7 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                     "active_fill_percent": event.get("active_fill_percent"),
                     "padding_ms": event.get("padding_ms"),
                     "phrase_count": event.get("phrase_count"),
+                "slowdown_percent": event.get("slowdown_percent"),
                     "adapted_retry": True,
                 }
                 update(80.5 + float(event["progress"]) * 0.5,
@@ -835,7 +842,7 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
             and float(cue.get("qc", {}).get("raw_duration") or 0.0) < 0.8 * float(cue.get("target_seconds") or 0.0)
             and float(cue.get("target_seconds") or 0.0) >= 2.0
         ]
-        if short_failures:
+        if short_failures and settings.dub_lengthen_short_takes:
             # A dub that fills half the actor's speaking time leaves the mouth moving
             # in silence: as wrong as overrunning. Re-adapt for full length.
             update(80.6, f"Lengthening {len(short_failures)} line(s) that under-filled their speaking time")
@@ -868,6 +875,7 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                     "active_fill_percent": event.get("active_fill_percent"),
                     "padding_ms": event.get("padding_ms"),
                     "phrase_count": event.get("phrase_count"),
+                "slowdown_percent": event.get("slowdown_percent"),
                     "lengthened_retry": True,
                 }
                 update(80.7 + float(event["progress"]) * 0.2,
@@ -911,6 +919,7 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                     "active_fill_percent": event.get("active_fill_percent"),
                     "padding_ms": event.get("padding_ms"),
                     "phrase_count": event.get("phrase_count"),
+                "slowdown_percent": event.get("slowdown_percent"),
                     "word_retry": True,
                 })
                 update(81 + float(event["progress"]) * 0.3,
