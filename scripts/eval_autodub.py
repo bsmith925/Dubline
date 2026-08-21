@@ -37,6 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from dubline_send import Client, choose_tracks, parse_time, upload, wait  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
+MAX_HEIGHT = int(os.environ.get("EVAL_MAX_HEIGHT", "1080"))  # best H.264 up to this height
 EVAL_DIR = ROOT / "eval"
 LANGUAGE_NAMES = {"es": "Spanish", "fr": "French", "de": "German", "it": "Italian", "pt": "Portuguese",
                   "ja": "Japanese", "ko": "Korean", "zh": "Chinese", "ru": "Russian", "hi": "Hindi",
@@ -113,10 +114,10 @@ def pick_formats(info: dict, dub_language: str) -> tuple[str, str, str, str]:
     """Return (video_format_id, dub_audio_format_id, original_audio_format_id, original_language)."""
     formats = info["formats"]
     video = [f for f in formats if f.get("vcodec", "none") != "none" and f.get("acodec") == "none"
-             and f.get("ext") == "mp4" and (f.get("height") or 0) <= 720 and str(f.get("vcodec", "")).startswith("avc1")
+             and f.get("ext") == "mp4" and (f.get("height") or 0) <= MAX_HEIGHT and str(f.get("vcodec", "")).startswith("avc1")
              and str(f.get("protocol", "")).startswith("http") and "m3u8" not in str(f.get("protocol", ""))]
     if not video:
-        raise SystemExit("No 720p H.264 video-only format found")
+        raise SystemExit(f"No H.264 video-only format up to {MAX_HEIGHT}p found")
     video_id = max(video, key=lambda f: (f.get("height") or 0, f.get("tbr") or 0))["format_id"]
     audio = [f for f in formats if f.get("vcodec") == "none" and f.get("acodec", "none") != "none" and f.get("ext") == "m4a"
              and "m3u8" not in str(f.get("protocol", ""))]
