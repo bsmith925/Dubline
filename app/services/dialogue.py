@@ -248,17 +248,20 @@ def merge_into_utterances(cues: list[dict], max_gap: float = 1.2, max_seconds: f
         previous["words"] = list(previous.get("words") or []) + list(cue.get("words") or [])
         previous["mouth_visible"] = bool(previous.get("mouth_visible") or cue.get("mouth_visible"))
         left, right = previous.get("visual_speaker") or {}, cue.get("visual_speaker") or {}
-        if left or right:
-            def _min(key):
-                values = [float(v) for v in (left.get(key), right.get(key)) if v is not None]
-                return min(values) if values else None
-            merged_visual = {**left}
-            merged_visual["active_speaker_confidence"] = _min("active_speaker_confidence")
-            merged_visual["face_area_ratio"] = _min("face_area_ratio")
-            merged_visual["visible_faces"] = max(int(left.get("visible_faces") or 0), int(right.get("visible_faces") or 0))
-            if left.get("active_face_id") != right.get("active_face_id"):
-                merged_visual["active_face_id"] = None   # evidence disagrees across the utterance
+        # Combine face evidence over the fragments that actually have it: a fragment
+        # with no detection (a blink-length "uh") must not zero the whole utterance.
+        evidence = [item for item in (left, right) if item.get("active_face_id")]
+        if evidence:
+            merged_visual = {**evidence[0]}
+            merged_visual["active_speaker_confidence"] = min(float(item.get("active_speaker_confidence") or 0) for item in evidence)
+            merged_visual["face_area_ratio"] = min(float(item.get("face_area_ratio") or 0) for item in evidence)
+            merged_visual["visible_faces"] = max(int(item.get("visible_faces") or 0) for item in (left, right))
+            if len({item.get("active_face_id") for item in evidence}) > 1:
+                merged_visual["active_face_id"] = None   # different faces across the utterance
+                merged_visual["active_speaker_confidence"] = 0.0
             previous["visual_speaker"] = merged_visual
+        elif left or right:
+            previous["visual_speaker"] = left or right
         for key in ("speaker_confidence", "timing_confidence", "transcription_confidence",
                     "alignment_confidence", "reference_quality"):
             values = [float(v) for v in (previous.get(key), cue.get(key)) if v is not None]

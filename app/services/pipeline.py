@@ -1639,12 +1639,23 @@ def remux(source: Path, audio: Path, output: Path, video_override: Path | None =
           target_language: str = "English") -> None:
     inputs = ["-i", str(source), "-i", str(audio)]
     video_map = "0:v?"
+    video_identity: list[str] = []
     if video_override and video_override.is_file():
         inputs += ["-i", str(video_override)]
         video_map = "2:v:0"
+        # The lip-synced stream is a re-encode; give it the source stream's tags and
+        # disposition so it is the same track to players and to delivery QC.
+        probe_video = next((item for item in probe_media(source).get("streams", [])
+                            if item.get("codec_type") == "video"), {})
+        for key, value in (probe_video.get("tags") or {}).items():
+            if key.lower() not in {"encoder", "duration", "number_of_frames", "number_of_bytes", "_statistics_writing_app",
+                                   "_statistics_writing_date_utc", "_statistics_tags", "bps"} and not key.upper().startswith("BPS"):
+                video_identity += ["-metadata:s:v:0", f"{key}={value}"]
+        flags = [key for key, on in (probe_video.get("disposition") or {}).items() if on]
+        video_identity += ["-disposition:v:0", "+".join(flags) if flags else "0"]
     run("ffmpeg", "-y", "-v", "error", *inputs,
         "-map", video_map, "-map", "1:a:0", "-map", "0:a?", "-map", "0:s?", "-map", "0:d?", "-map", "0:t?",
-        "-map_metadata", "0", "-map_chapters", "0", "-c", "copy",
+        "-map_metadata", "0", "-map_chapters", "0", "-c", "copy", *video_identity,
         "-metadata:s:a:0", f"language={iso2(target_language)}",
         "-metadata:s:a:0", f"title={target_language} AI Dub · FLAC delivery master",
         # The dub is the deliverable: flag it default so players pick it. The
