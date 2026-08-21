@@ -1,0 +1,17 @@
+{
+  "source": "/mnt/media/dubline/sources/gingerbill-cleancode.en.1080p.mkv",
+  "source_audio_stream": 0,
+  "windows": [
+    {"id": "w1", "start": 1.0, "end": 12.0},
+    {"id": "w2", "start": 11.5, "end": 21.5},
+    {"id": "w3", "start": 22.0, "end": 32.5}
+  ],
+  "systems": {
+    "v5-icl-nolipsync": "/mnt/media/dubline/output/gingerbill-french-v5/gingerbill-cleancode.en.french.dub.mkv",
+    "v6-xvec-nolipsync": "/mnt/media/dubline/output/gingerbill-french-v6/gingerbill-cleancode.en.1080p.french.dub.mkv",
+    "v8-musetalk": "/mnt/media/dubline/output/gingerbill-french-v8/gingerbill-cleancode.en.1080p.french.dub.mkv",
+    "exp1-musetalk-nolengthen": "/mnt/media/dubline/output/eval/core-v0/gb-en-fr-0090/gingerbill-cleancode.en.1080p.french.dub.mkv",
+    "exp4-latentsync": "/mnt/media/dubline/data/jobs/4bf7a9d62b26/dubbed-english.mkv"
+  },
+  "degrade_system": "exp4-latentsync"
+}
