@@ -105,13 +105,23 @@ try:
 except Exception as exc:
     app = None; print("insightface unavailable:", exc, file=sys.stderr)
 
-def frames(path):
-    cap = cv2.VideoCapture(path); fps = cap.get(cv2.CAP_PROP_FPS) or 25
+def read_all(path):
+    cap = cv2.VideoCapture(path); fps = cap.get(cv2.CAP_PROP_FPS) or 25; out = []
     while True:
         ok, f = cap.read()
         if not ok: break
-        yield f
-    cap.release()
+        out.append(f)
+    cap.release(); return out, fps
+
+def frames(path):
+    for f in read_all(path)[0]: yield f
+
+src_frames, src_fps = read_all(src); out_frames, out_fps = read_all(out)
+def paired():
+    # pair by timestamp so a 25 fps render is compared with the source instant it depicts
+    for j, fo in enumerate(out_frames):
+        i = min(len(src_frames) - 1, int(round(j / out_fps * src_fps)))
+        yield src_frames[i], fo
 
 def lm(frame):
     pts = fa.get_landmarks_from_image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
@@ -127,7 +137,7 @@ def embed(frame):
 
 ident, lpips_out, jit_src, jit_out, aperture_src, aperture_out = [], [], [], [], [], []
 prev_s = prev_o = None
-for i, (fs, fo) in enumerate(zip(frames(src), frames(out))):
+for i, (fs, fo) in enumerate(paired()):
     if fo.shape != fs.shape: fo = cv2.resize(fo, (fs.shape[1], fs.shape[0]))
     ps, po = lm(fs), lm(fo)
     if ps is None or po is None: continue
