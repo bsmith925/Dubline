@@ -114,6 +114,9 @@ class Settings(BaseSettings):
     # Off since experiment 1 (2026-08-21): it removed 8.6 points of mean speed-up and
     # +0.08 intelligibility at no translation cost; see eval/experiments.md.
     dub_lengthen_short_takes: bool = False
+    # Experiment 2: place a short take's phrases onto the source's speech runs
+    # (from forced-aligned words) instead of evenly widening pauses.
+    dub_place_on_source_runs: bool = False
 
     # --- MuseTalk lip-sync (optional) ----------------------------------------
     musetalk_enabled: bool = True

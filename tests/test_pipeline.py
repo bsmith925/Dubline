@@ -273,3 +273,21 @@ def test_short_take_phrases_are_spread_across_the_span(tmp_path: Path):
     last_voiced = np.max(np.nonzero(active)) / rate
     assert metrics["stretch_percent"] == 0 and metrics["slowdown_percent"] <= 8.0 and abs(len(fitted) / rate - 4.0) < 0.01
     assert last_voiced > 3.0      # speech reaches the end of the span instead of stopping at ~2.3 s
+
+
+def test_anchored_fit_places_phrases_on_source_runs(tmp_path: Path):
+    import soundfile as sf
+    from app.services.audio_fit import fit_audio
+    rate = 24_000
+    tone = (0.3 * np.sin(2 * np.pi * 220 * np.arange(rate) / rate)).astype(np.float32)
+    take = np.concatenate([tone, np.zeros(round(rate * .2), dtype=np.float32), tone])   # two 1 s phrases
+    source = tmp_path / "raw.wav"; sf.write(source, take, rate)
+    # source spoke at 0.5-1.8 s and 4.0-5.5 s of a 6 s span
+    metrics = fit_audio(source, tmp_path / "fit.wav", target=6.0, anchors=[[0.5, 1.8], [4.0, 5.5]])
+    fitted, _ = sf.read(tmp_path / "fit.wav")
+    active = np.abs(fitted) > 1e-3
+    t = np.nonzero(active)[0] / rate
+    assert metrics["placed_on_anchors"] is True and metrics["stretch_percent"] == 0
+    assert 0.45 <= t.min() <= 0.6                      # first phrase starts on the first run
+    second = t[t > 2.5]
+    assert 3.9 <= second.min() <= 4.15                  # second phrase starts on the second run, not right after the first

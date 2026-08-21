@@ -39,7 +39,7 @@ def main() -> None:
         )
         sf.write(raw, wavs[0], sample_rate)
         raw_duration = len(wavs[0]) / float(sample_rate)
-        metrics = fit_audio(raw, fitted, float(item["target"]))
+        metrics = fit_audio(raw, fitted, float(item["target"]), anchors=item.get("source_runs"))
         event = {"progress": (position + 1) / max(1, len(spec["items"])),
                  "cue_index": item["cue_index"], "raw_duration": round(raw_duration, 4),
                  "attempts": 1, **metrics}

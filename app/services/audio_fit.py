@@ -62,7 +62,14 @@ def stretch_phrase(values: np.ndarray, rate: int, tempo: float, folder: Path, in
 MAX_SLOWDOWN = 1.08  # gentle; beyond this a slowed voice sounds drugged
 
 
-def fit_audio(source: Path, output: Path, target: float) -> dict:
+def fit_audio(source: Path, output: Path, target: float, anchors: list[list[float]] | None = None) -> dict:
+    """Fit a take to ``target`` seconds.
+
+    ``anchors`` (optional): the source's own speech runs, in seconds relative to the
+    take start. When given and the take is shorter than the span, phrases are placed
+    onto successive runs so the dub speaks where the actor's mouth was moving,
+    rather than being front-loaded with evenly widened pauses.
+    """
     audio, rate = sf.read(source, dtype="float32", always_2d=True)
     mono = audio.mean(axis=1); start, end, runs = activity(audio, rate)
     target_frames = max(1, round(target * rate))
@@ -85,7 +92,25 @@ def fit_audio(source: Path, output: Path, target: float) -> dict:
         result = np.zeros(target_frames, dtype=np.float32)
         spare = max(0, target_frames - len(trimmed))
         lead = min(round(rate * .025), spare)
-        if len(relative_runs) >= 2 and spare > lead:
+        placed = False
+        if anchors and relative_runs and spare > lead:
+            # Greedy placement: each phrase starts at the next source run that begins
+            # at or after the cursor; phrases never overlap and never run past the span.
+            anchor_starts = sorted(max(0.0, float(a[0])) for a in anchors if len(a) == 2)
+            cursor = lead
+            for run_index, (run_start, run_end) in enumerate(relative_runs):
+                piece = trimmed[run_start:run_end]
+                natural_gap = (run_start - relative_runs[run_index - 1][1]) if run_index else 0
+                candidates = [round(a * rate) for a in anchor_starts if round(a * rate) >= cursor + natural_gap]
+                start_at = candidates[0] if candidates else cursor + natural_gap
+                if start_at + len(piece) > target_frames:           # keep everything: fall back to tight packing
+                    start_at = max(cursor + natural_gap, target_frames - len(piece))
+                    if start_at + len(piece) > target_frames:
+                        start_at = cursor
+                result[start_at:start_at + len(piece)] = piece[: max(0, target_frames - start_at)]
+                cursor = start_at + len(piece)
+            placed = True
+        if not placed and len(relative_runs) >= 2 and spare > lead:
             # Cap how far any single pause may grow so phrasing stays natural.
             max_extra_per_gap = round(rate * 1.2)
             gaps = len(relative_runs) - 1
@@ -97,7 +122,7 @@ def fit_audio(source: Path, output: Path, target: float) -> dict:
                 piece = trimmed[run_start:run_end]
                 result[cursor:cursor + len(piece)] = piece
                 cursor += len(piece)
-        else:
+        elif not placed:
             result[lead:lead + len(trimmed)] = trimmed
         padding_ms = spare / rate * 1000
     else:
@@ -136,4 +161,5 @@ def fit_audio(source: Path, output: Path, target: float) -> dict:
     sf.write(output, np.clip(result * .96, -.97, .97), output_rate, subtype="PCM_16")
     return {"active_duration": round(active_duration, 4), "active_fill_percent": round(active_duration / target * 100, 2),
             "padding_ms": round(padding_ms, 1), "phrase_count": len(runs),
-            "stretch_percent": round(tempo_correction, 2), "slowdown_percent": round(slowdown, 2)}
+            "stretch_percent": round(tempo_correction, 2), "slowdown_percent": round(slowdown, 2),
+            "placed_on_anchors": bool(anchors) and padding_ms > 0}

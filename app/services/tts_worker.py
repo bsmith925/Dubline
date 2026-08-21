@@ -60,7 +60,7 @@ def main() -> None:
             fitted_valid = info.samplerate == 24_000 and abs(info.frames / info.samplerate - target) <= .002
             if not fitted_valid:
                 fitted.unlink(missing_ok=True)
-        metrics = fit_audio(raw, fitted, target) if not fitted_valid else {
+        metrics = fit_audio(raw, fitted, target, anchors=item.get("source_runs")) if not fitted_valid else {
             "active_duration": round(active, 4), "active_fill_percent": round(active / target * 100, 2),
             "padding_ms": 0.0, "phrase_count": 1, "stretch_percent": round(max(0, active / target - 1) * 100, 2),
         }

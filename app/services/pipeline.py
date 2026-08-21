@@ -725,7 +725,9 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
             cue["performance_source"] = "source performance" if source_performance_ok else "scene context"
             spoken_text = apply_glossary(cue["english"])
             cue["spoken_text"] = spoken_text
+            source_runs = word_runs(cue, cue_start=float(cue["start"])) if settings.dub_place_on_source_runs else None
             tts_items.append({
+                "source_runs": source_runs,
                 "text": spoken_text, "reference": str(reference), "reference_text": reference_text,
                 "raw": str(raw_line), "fitted": str(fitted_line), "target": target,
                 "emotion_vector": None if source_performance_ok else cue.get("emotion_vector"),
@@ -1444,6 +1446,23 @@ def fit_audio(source: Path, output: Path, target: float) -> None:
     run("ffmpeg", "-y", "-v", "error", "-i", str(source), "-af",
         f"rubberband=tempo={tempo:.8f},apad,atrim=duration={target:.6f},afade=t=in:st=0:d=0.015,afade=t=out:st={max(0, target - .03):.6f}:d=0.03",
         "-ar", str(SAMPLE_RATE), "-ac", "1", "-c:a", "pcm_s16le", str(output))
+
+
+def word_runs(cue: dict, cue_start: float, max_gap: float = 0.25) -> list[list[float]]:
+    """Source speech runs (seconds relative to the cue start) from forced-aligned words."""
+    runs: list[list[float]] = []
+    for word in sorted(cue.get("words") or [], key=lambda w: float(w.get("start", 0))):
+        try:
+            start, end = float(word["start"]) - cue_start, float(word["end"]) - cue_start
+        except (KeyError, TypeError, ValueError):
+            continue
+        if end <= start:
+            continue
+        if runs and start - runs[-1][1] <= max_gap:
+            runs[-1][1] = max(runs[-1][1], end)
+        else:
+            runs.append([round(max(0.0, start), 3), round(end, 3)])
+    return runs
 
 
 def write_silence(path: Path, seconds: float, rate: int = 24_000) -> None:

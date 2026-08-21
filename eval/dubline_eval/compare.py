@@ -39,7 +39,8 @@ def compare(baseline: Path, candidate: Path, top: int = 8) -> str:
             if bv is None or cv is None:
                 continue
             delta = float(cv) - float(bv)
-            scale = max(abs(float(bv)), 1e-6)
+            # Relative to the larger magnitude, so a zero baseline does not explode.
+            scale = max(abs(float(bv)), abs(float(cv)), 1e-6)
             signed = delta if higher else -delta          # positive = improvement
             changes.append((signed / scale, name, k, float(bv), float(cv)))
     changes.sort()
