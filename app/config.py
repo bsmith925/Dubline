@@ -105,6 +105,11 @@ class Settings(BaseSettings):
     # --- TTS fallback ---------------------------------------------------------
     qwen_tts_model: Path = Path("vendor/qwen3-tts-1.7b-base")
     qwen_tts_runtime: Path = Path("vendor/qwen-tts-env")
+    # Voice-clone prompt for Qwen3-TTS. "icl" (reference audio + its transcript) tracks the
+    # speaker more closely but carries the reference language's phonology into the dub;
+    # "xvector" (speaker embedding only) keeps the target language native. "auto" picks
+    # xvector when dubbing across languages and icl when re-voicing the same language.
+    qwen_tts_clone_mode: Literal["auto", "icl", "xvector"] = "auto"
 
     # --- MuseTalk lip-sync (optional) ----------------------------------------
     musetalk_enabled: bool = False

@@ -696,6 +696,11 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                 reference_text = str(cue.get("source", "")).strip()
             elif reference.with_suffix(".txt").is_file():
                 reference_text = reference.with_suffix(".txt").read_text(encoding="utf-8").strip()
+            cross_lingual = str(cue.get("source_language") or detection.get("language") or "").lower() != target_language.lower()
+            use_icl = (settings.qwen_tts_clone_mode == "icl"
+                       or (settings.qwen_tts_clone_mode == "auto" and not cross_lingual))
+            if not use_icl:
+                reference_text = ""  # speaker-embedding mode: native target-language phonology
             raw_line = generated / f"{line_number:06d}.wav"
             fitted_line = fitted / f"{line_number:06d}.wav"
             emotion_reference = emotion_refs / f"{line_number:06d}.wav"

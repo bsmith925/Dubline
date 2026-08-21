@@ -257,3 +257,18 @@ def test_fragments_merge_into_same_speaker_utterances():
     assert len(merged[0]["words"]) == 2 and merged[0]["nonverbal_filler"] is False
     assert merged[3]["nonverbal_filler"] is True          # isolated hesitation stays a preserved line
     assert [m["id"] for m in merged] == [1, 2, 3, 4] and all(m["utterance"] for m in merged)
+
+
+def test_short_take_phrases_are_spread_across_the_span(tmp_path: Path):
+    import soundfile as sf
+    from app.services.audio_fit import fit_audio
+    rate = 24_000
+    tone = (0.3 * np.sin(2 * np.pi * 220 * np.arange(rate) / rate)).astype(np.float32)
+    take = np.concatenate([tone, np.zeros(round(rate * .3), dtype=np.float32), tone])   # two 1 s phrases, 0.3 s gap
+    source = tmp_path / "raw.wav"; sf.write(source, take, rate)
+    metrics = fit_audio(source, tmp_path / "fit.wav", target=4.0)
+    fitted, _ = sf.read(tmp_path / "fit.wav")
+    active = np.abs(fitted) > 1e-3
+    last_voiced = np.max(np.nonzero(active)) / rate
+    assert metrics["stretch_percent"] == 0 and abs(len(fitted) / rate - 4.0) < 0.01
+    assert last_voiced > 3.0      # speech reaches the end of the span instead of stopping at ~2.3 s

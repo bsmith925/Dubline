@@ -68,11 +68,29 @@ def fit_audio(source: Path, output: Path, target: float) -> dict:
     trimmed = mono[start:end]
     padding_ms = 0.0; tempo_correction = 0.0
     if len(trimmed) <= target_frames:
-        # Natural short delivery: retain its cadence and add silence, never slow it.
+        # Natural short delivery: never slow the voice. Spread the phrases across the
+        # span by widening the pauses between them (so speech follows the actor's
+        # mouth activity through the whole line) instead of parking all the slack
+        # as silence at the end.
         result = np.zeros(target_frames, dtype=np.float32)
-        lead = min(round(rate * .025), max(0, target_frames - len(trimmed)))
-        result[lead:lead + len(trimmed)] = trimmed
-        padding_ms = (target_frames - len(trimmed)) / rate * 1000
+        spare = target_frames - len(trimmed)
+        relative_runs = [(a - start, b - start) for a, b in runs]
+        lead = min(round(rate * .025), spare)
+        if len(relative_runs) >= 2 and spare > lead:
+            # Cap how far any single pause may grow so phrasing stays natural.
+            max_extra_per_gap = round(rate * 1.2)
+            gaps = len(relative_runs) - 1
+            extra_per_gap = min(max_extra_per_gap, (spare - lead) // gaps)
+            cursor = lead
+            for run_index, (run_start, run_end) in enumerate(relative_runs):
+                if run_index:
+                    cursor += (run_start - relative_runs[run_index - 1][1]) + extra_per_gap
+                piece = trimmed[run_start:run_end]
+                result[cursor:cursor + len(piece)] = piece
+                cursor += len(piece)
+        else:
+            result[lead:lead + len(trimmed)] = trimmed
+        padding_ms = spare / rate * 1000
     else:
         relative_runs = [(a - start, b - start) for a, b in runs]
         internal_gaps = sum(relative_runs[i][0] - relative_runs[i - 1][1]
