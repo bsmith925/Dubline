@@ -22,7 +22,7 @@ def _extract(video: Path, start: float, duration: float, out: Path, audio_stream
 
 def _syncnet(clip: Path, repo: Path, runtime: Path, work: Path, reference: str) -> dict | None:
     env_cwd = str(repo)
-    pipe = subprocess.run([str(runtime), "run_pipeline.py", "--videofile", str(clip), "--reference", reference, "--data_dir", str(work)],
+    pipe = subprocess.run([str(runtime), "run_pipeline.py", "--videofile", str(clip), "--reference", reference, "--data_dir", str(work), "--overwrite"],
                           cwd=env_cwd, capture_output=True, text=True)
     if pipe.returncode:
         return {"error": (pipe.stderr or pipe.stdout)[-400:]}
