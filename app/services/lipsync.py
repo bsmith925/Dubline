@@ -108,8 +108,11 @@ def apply_selective_lipsync(source: Path, cues: list[dict], dialogue_dir: Path, 
         # Keep the first/last 120 ms silent so the regenerated mouth blends at shot boundaries.
         # Native frame rate: MuseTalk scales its audio window by 50/fps, and keeping the
         # source cadence lets the edited shot composite back frame-accurately.
-        subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", f"{start:.3f}", "-to", f"{end:.3f}",
-                        "-i", str(source), "-an", "-c:v", "libx264", "-crf", "14", "-pix_fmt", "yuv420p", str(clip)],
+        # Seek accurately and cut by duration (input "-to" near the start of a file
+        # produced clips that began at t=0; measured 1.27-1.32x over-length on first shots).
+        subprocess.run(["ffmpeg", "-y", "-v", "error", "-accurate_seek", "-ss", f"{start:.3f}", "-i", str(source),
+                        "-t", f"{max(0.04, end - start):.3f}", "-an", "-c:v", "libx264", "-crf", "14",
+                        "-pix_fmt", "yuv420p", "-video_track_timescale", "90000", str(clip)],
                        check=True)
         line = dialogue_dir / f"{index + 1:06d}.wav"
         duration = max(.1, end - start)
