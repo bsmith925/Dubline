@@ -85,7 +85,7 @@ def snippet_metrics(snippet: Path, source_snippet: Path, work: Path) -> dict:
 
 def make(args) -> None:
     spec = json.loads(Path(args.spec).read_text())
-    out = Path(args.out); out.mkdir(parents=True, exist_ok=True); work = out / "work"
+    out = Path(args.out); work = out / "work"; work.mkdir(parents=True, exist_ok=True)
     rng = random.Random(args.seed)
     pairs = []
     source = Path(spec["source"])
