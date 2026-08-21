@@ -247,6 +247,18 @@ def merge_into_utterances(cues: list[dict], max_gap: float = 1.2, max_seconds: f
                                                            str(cue.get(key) or "").strip()) if part)
         previous["words"] = list(previous.get("words") or []) + list(cue.get("words") or [])
         previous["mouth_visible"] = bool(previous.get("mouth_visible") or cue.get("mouth_visible"))
+        left, right = previous.get("visual_speaker") or {}, cue.get("visual_speaker") or {}
+        if left or right:
+            def _min(key):
+                values = [float(v) for v in (left.get(key), right.get(key)) if v is not None]
+                return min(values) if values else None
+            merged_visual = {**left}
+            merged_visual["active_speaker_confidence"] = _min("active_speaker_confidence")
+            merged_visual["face_area_ratio"] = _min("face_area_ratio")
+            merged_visual["visible_faces"] = max(int(left.get("visible_faces") or 0), int(right.get("visible_faces") or 0))
+            if left.get("active_face_id") != right.get("active_face_id"):
+                merged_visual["active_face_id"] = None   # evidence disagrees across the utterance
+            previous["visual_speaker"] = merged_visual
         for key in ("speaker_confidence", "timing_confidence", "transcription_confidence",
                     "alignment_confidence", "reference_quality"):
             values = [float(v) for v in (previous.get(key), cue.get(key)) if v is not None]

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Optional, confidence-gated MuseTalk finishing for a few clean visible shots."""
+"""Confidence-gated MuseTalk lip-sync for every utterance with a clean, visible mouth."""
 
 import json
 import shutil
@@ -35,9 +35,9 @@ def apply_selective_lipsync(source: Path, cues: list[dict], dialogue_dir: Path, 
                             checkpoint: Callable[[], None]) -> tuple[Path | None, dict]:
     """Return a video-only override, or None when no shot safely qualifies.
 
-    MuseTalk is intentionally not applied across a whole film.  A cue qualifies only
-    when exactly one sizeable face is visible, the active-speaker evidence is strong,
-    and audio-only timing QC still found a visible mismatch.
+    An utterance qualifies when exactly one sizeable face is visible, its mouth is
+    visible and the active-speaker evidence is strong.  Shots that fail the gate
+    keep the original picture; a partially lip-synced film beats an artefacted one.
     """
     if not _enabled():
         return None, {"enabled": False, "selected": 0, "completed": 0}
@@ -68,20 +68,32 @@ def apply_selective_lipsync(source: Path, cues: list[dict], dialogue_dir: Path, 
     if not all(path.is_file() for path in required):
         return None, {"enabled": True, "ready": False, "selected": 0, "completed": 0}
     candidates = []
+    skipped: dict[str, int] = {}
     for index, cue in enumerate(cues):
-        visual = cue.get("visual_speaker", {})
-        qc = cue.get("qc", {})
-        visible_failure = (abs(float(qc.get("stretch_percent") or 0.0)) > 5.0
-                           or float(qc.get("energy_contour_similarity", 1.0)) < .15)
+        visual = cue.get("visual_speaker") or {}
         duration = float(cue.get("end", 0)) - float(cue.get("start", 0))
-        if (visible_failure and cue.get("mouth_visible") and visual.get("visible_faces") == 1
-                and float(visual.get("active_speaker_confidence", 0)) >= .82
-                and float(visual.get("face_area_ratio", 0)) >= .004
-                and .45 <= duration <= 8.0):
-            candidates.append((index, cue))
-    candidates = candidates[:settings.musetalk_max_shots]
+        reason = None
+        if cue.get("nonverbal_filler") or cue.get("overlapping_speech"):
+            reason = "source performance kept"
+        elif not cue.get("mouth_visible"):
+            reason = "mouth not visible"
+        elif visual.get("visible_faces") != 1:
+            reason = "not exactly one face"
+        elif float(visual.get("active_speaker_confidence") or 0) < .82:
+            reason = "uncertain active speaker"
+        elif float(visual.get("face_area_ratio") or 0) < .004:
+            reason = "face too small"
+        elif not .45 <= duration <= 14.0:
+            reason = "duration out of range"
+        if reason:
+            skipped[reason] = skipped.get(reason, 0) + 1
+            cue.setdefault("qc", {})["visual_lipsync_skipped"] = reason
+            continue
+        candidates.append((index, cue))
+    if settings.musetalk_max_shots:
+        candidates = candidates[:settings.musetalk_max_shots]
     if not candidates:
-        return None, {"enabled": True, "ready": True, "selected": 0, "completed": 0}
+        return None, {"enabled": True, "ready": True, "selected": 0, "completed": 0, "skipped": skipped}
 
     work = folder / "musetalk-finishing"; work.mkdir(exist_ok=True)
     results = work / "results"; results.mkdir(exist_ok=True)
@@ -94,8 +106,10 @@ def apply_selective_lipsync(source: Path, cues: list[dict], dialogue_dir: Path, 
         clip = work / f"cue-{index + 1:06d}-source.mp4"
         audio = work / f"cue-{index + 1:06d}-audio.wav"
         # Keep the first/last 120 ms silent so the regenerated mouth blends at shot boundaries.
+        # Native frame rate: MuseTalk scales its audio window by 50/fps, and keeping the
+        # source cadence lets the edited shot composite back frame-accurately.
         subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", f"{start:.3f}", "-to", f"{end:.3f}",
-                        "-i", str(source), "-an", "-vf", "fps=25", "-c:v", "libx264", "-crf", "16", str(clip)],
+                        "-i", str(source), "-an", "-c:v", "libx264", "-crf", "14", "-pix_fmt", "yuv420p", str(clip)],
                        check=True)
         line = dialogue_dir / f"{index + 1:06d}.wav"
         duration = max(.1, end - start)
@@ -110,7 +124,8 @@ def apply_selective_lipsync(source: Path, cues: list[dict], dialogue_dir: Path, 
                    "--result_dir", str(results), "--unet_model_path", str(model_dir / "unet.pth"),
                    "--unet_config", str(model_dir / "musetalk.json"), "--whisper_dir",
                    str(repo / "models/whisper"), "--version", "v15", "--use_float16",
-                   "--batch_size", "4", "--ffmpeg_path", str(Path(shutil.which("ffmpeg") or "ffmpeg").parent)]
+                   "--batch_size", "16", "--extra_margin", "10", "--parsing_mode", "jaw",
+                   "--ffmpeg_path", str(Path(shutil.which("ffmpeg") or "ffmpeg").parent)]
         ok, tail = _run(command, repo, checkpoint)
         generated = results / "v15" / result_name
         if ok and generated.is_file():
@@ -136,4 +151,5 @@ def apply_selective_lipsync(source: Path, cues: list[dict], dialogue_dir: Path, 
                     "-map", f"[{current}]", "-an", "-c:v", "libx264", "-preset", "slow", "-crf", "16",
                     "-map_metadata", "0", str(output)], check=True)
     return output, {"enabled": True, "ready": True, "selected": len(candidates),
-                    "completed": len(completed), "cue_ids": [index + 1 for *_, index in completed]}
+                    "completed": len(completed), "skipped": skipped,
+                    "cue_ids": [index + 1 for *_, index in completed]}

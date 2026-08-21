@@ -112,11 +112,11 @@ class Settings(BaseSettings):
     qwen_tts_clone_mode: Literal["auto", "icl", "xvector"] = "auto"
 
     # --- MuseTalk lip-sync (optional) ----------------------------------------
-    musetalk_enabled: bool = False
+    musetalk_enabled: bool = True
     musetalk_repo: Path = Path("vendor/MuseTalk")
     musetalk_model_dir: Path | None = None  # defaults to <musetalk_repo>/models/musetalkV15
     musetalk_runtime: Path = Path("vendor/musetalk-env")
-    musetalk_max_shots: int = Field(default=6, ge=0)
+    musetalk_max_shots: int = Field(default=0, ge=0)  # 0 = every eligible utterance
 
     # --- GPU pacing between isolated inference calls ------------------------
     dub_gpu_line_cooldown_seconds: float = Field(default=0.45, ge=0)

@@ -984,8 +984,10 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                                "error": str(exc)}
             log(f"Optional visual finishing was skipped after a local worker error: {exc}")
         if lipsync_summary.get("enabled"):
-            log(f"MuseTalk finishing selected {lipsync_summary['selected']} clean visible shot(s); "
-                f"completed {lipsync_summary['completed']}")
+            skipped = lipsync_summary.get("skipped") or {}
+            log(f"Lip-sync: {lipsync_summary['completed']} of {lipsync_summary['selected']} eligible utterance(s) rendered"
+                + (f"; skipped {sum(skipped.values())} (" + ", ".join(f"{v} {k}" for k, v in skipped.items()) + ")" if skipped else "")
+                + ("" if lipsync_summary.get("ready", True) else "; MuseTalk runtime not installed"))
         update(95, "Rejoining the full-length video")
         remux(source, mixed, output, video_override, target_language=target_language)
         update(98, "Verifying the finished film and writing its QC report")
