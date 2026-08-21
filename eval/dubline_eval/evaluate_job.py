@@ -57,11 +57,15 @@ def _untranslated_rate(source: str, target: str, target_language: str) -> float 
 
 
 def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
-             t_max: float | None = None, mouth_fps: float = 15.0) -> tuple[list[UtteranceRecord], ClipRecord, dict]:
+             t_max: float | None = None, mouth_fps: float = 15.0, job: dict | None = None) -> tuple[list[UtteranceRecord], ClipRecord, dict]:
+    """``job`` is the final job record from the server API (cues.json on disk predates the
+    lip-sync stage and lacks its per-line results and the delivery QC)."""
     work.mkdir(parents=True, exist_ok=True)
-    cues = json.loads((job_dir / "cues.json").read_text())
-    qc_report = json.loads((job_dir / "qc-report.json").read_text()) if (job_dir / "qc-report.json").is_file() else {}
-    target_language = qc_report.get("target_language") or _guess_target(job_dir) or "English"
+    job = job or {}
+    cues = job.get("cues") or json.loads((job_dir / "cues.json").read_text())
+    qc_report = job.get("qc") or {}
+    options = job.get("options") or {}
+    target_language = options.get("target_language") or _guess_target(job_dir) or "English"
     duration = audio.duration(job_dir / "working-soundtrack-48k.flac")
     t_end = min(duration, t_max) if t_max else duration
 
@@ -129,7 +133,7 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
                 candidates=list(cue.get("translation_candidates") or [])),
             tts=TTSMetrics(
                 engine=q.get("tts_engine") or ("Qwen3-TTS" if (job_dir / "qwen-tts-manifest-primary-synthesis.json").is_file() else "IndexTTS"),
-                clone_mode=None, raw_duration=q.get("raw_duration"), raw_speech_active=q.get("active_duration"),
+                clone_mode=options.get("qwen_tts_clone_mode"), raw_duration=q.get("raw_duration"), raw_speech_active=q.get("active_duration"),
                 final_duration=audio.duration(take) if take.is_file() else None,
                 final_speech_active=audio.total([[s - start, e - start] for s, e in take_speech]),
                 stretch_percent=q.get("stretch_percent"), slowdown_percent=q.get("slowdown_percent"), padding_ms=q.get("padding_ms"),
@@ -152,7 +156,7 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
             flags=list(cue.get("review_reasons") or []),
         ))
 
-    throughput = qc_report.get("throughput") or {}
+    throughput = job.get("throughput") or {}
     clip = ClipRecord(
         clip_id=clip_id, job_id=job_dir.name, source_fingerprint=_fingerprint(job_dir), target_language=target_language,
         utterance_count=len(records), wall_seconds=throughput.get("wall_seconds"), realtime_factor=throughput.get("realtime_factor"),

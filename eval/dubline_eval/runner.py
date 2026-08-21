@@ -38,6 +38,12 @@ def server_models(server: str) -> dict:
         return {}
 
 
+def fetch_job(server: str, job_id: str) -> dict:
+    import urllib.request
+    with urllib.request.urlopen(server.rstrip("/") + f"/api/jobs/{job_id}", timeout=30) as resp:
+        return json.loads(resp.read())
+
+
 def load_suite(path: Path) -> dict:
     return yaml.safe_load(path.read_text())
 
@@ -80,7 +86,11 @@ def run(suite_path: Path, server: str, jobs_root: Path, out_root: Path, runtimes
             if not job_id:
                 continue
             job_dir = jobs_root / job_id
-            records, clip_record, timeline = evaluate(job_dir, clip["id"], runtimes, out / "work" / clip["id"], mouth_fps=mouth_fps)
+            job_record = fetch_job(server, job_id)
+            (out / "work" / clip["id"]).mkdir(parents=True, exist_ok=True)
+            (out / "work" / clip["id"] / "job.json").write_text(json.dumps(job_record, ensure_ascii=False))
+            records, clip_record, timeline = evaluate(job_dir, clip["id"], runtimes, out / "work" / clip["id"],
+                                                      mouth_fps=mouth_fps, job=job_record)
             for r in records:
                 uf.write(json.dumps(r.to_dict(), ensure_ascii=False) + "\n")
             cf.write(json.dumps(clip_record.to_dict(), ensure_ascii=False) + "\n")
