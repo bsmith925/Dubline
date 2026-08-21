@@ -28,7 +28,10 @@ DIMENSIONS = ["overall", "naturalness", "timing", "voice_likeness", "translation
 
 
 def sh(cmd):
-    return subprocess.run(cmd, check=True, capture_output=True, text=True)
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode:
+        raise RuntimeError(f"{cmd[0]} exit {r.returncode}: {r.stderr.strip()[-800:]}")
+    return r
 
 
 def cut(src: Path, start: float, end: float, out: Path, audio_stream: int = 0) -> Path:
