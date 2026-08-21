@@ -16,6 +16,16 @@ def _enabled() -> bool:
     return settings.musetalk_enabled
 
 
+def _video_fps(path: Path) -> float | None:
+    try:
+        text = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=r_frame_rate",
+                               "-of", "csv=p=0", str(path)], capture_output=True, text=True).stdout.strip()
+        num, den = text.split("/")
+        return float(num) / float(den)
+    except Exception:
+        return None
+
+
 def _run(command: list[str], cwd: Path, checkpoint: Callable[[], None]) -> tuple[bool, str]:
     process = subprocess.Popen(command, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                text=True, encoding="utf-8", errors="replace", bufsize=1)
@@ -60,13 +70,18 @@ def apply_selective_lipsync(source: Path, cues: list[dict], dialogue_dir: Path, 
     if unsafe:
         return None, {"enabled": True, "ready": True, "selected": 0, "completed": 0,
                       "refused": True, "reason": "; ".join(unsafe)}
+    engine = settings.lipsync_engine
     repo = settings.musetalk_repo
     runtime = settings.musetalk_runtime
     model_dir = settings.musetalk_model_dir
-    required = [runtime, model_dir / "unet.pth", model_dir / "musetalk.json",
-                repo / "models/whisper/pytorch_model.bin"]
+    if engine == "latentsync":
+        repo, runtime = settings.latentsync_repo, settings.latentsync_runtime
+        required = [runtime, repo / "checkpoints/latentsync_unet.pt", repo / "configs/unet/stage2_512.yaml"]
+    else:
+        required = [runtime, model_dir / "unet.pth", model_dir / "musetalk.json",
+                    repo / "models/whisper/pytorch_model.bin"]
     if not all(path.is_file() for path in required):
-        return None, {"enabled": True, "ready": False, "selected": 0, "completed": 0}
+        return None, {"enabled": True, "ready": False, "engine": engine, "selected": 0, "completed": 0}
     candidates = []
     skipped: dict[str, int] = {}
     for index, cue in enumerate(cues):
@@ -122,18 +137,40 @@ def apply_selective_lipsync(source: Path, cues: list[dict], dialogue_dir: Path, 
         result_name = f"cue-{index + 1:06d}.mp4"
         config = work / f"cue-{index + 1:06d}.json"
         config.write_text(json.dumps({"task": {"video_path": str(clip), "audio_path": str(audio),
-                                                "result_name": result_name}}, indent=2), encoding="utf-8")
-        command = [str(runtime), "-m", "scripts.inference", "--inference_config", str(config),
-                   "--result_dir", str(results), "--unet_model_path", str(model_dir / "unet.pth"),
-                   "--unet_config", str(model_dir / "musetalk.json"), "--whisper_dir",
-                   str(repo / "models/whisper"), "--version", "v15", "--use_float16",
-                   "--batch_size", "16", "--extra_margin", "10", "--parsing_mode", "jaw",
-                   "--ffmpeg_path", str(Path(shutil.which("ffmpeg") or "ffmpeg").parent)]
-        ok, tail = _run(command, repo, checkpoint)
-        generated = results / "v15" / result_name
+                                                "result_name": result_name, "engine": engine}}, indent=2), encoding="utf-8")
+        if engine == "latentsync":
+            rendered = results / "latentsync" / result_name
+            rendered.parent.mkdir(parents=True, exist_ok=True)
+            command = [str(runtime), "-m", "scripts.inference", "--unet_config_path", "configs/unet/stage2_512.yaml",
+                       "--inference_ckpt_path", "checkpoints/latentsync_unet.pt", "--inference_steps", "20",
+                       "--guidance_scale", "1.5", "--seed", "1247", "--video_path", str(clip), "--audio_path", str(audio),
+                       "--video_out_path", str(rendered)]
+            ok, tail = _run(command, repo, checkpoint)
+            generated = rendered
+            if ok and generated.is_file():
+                # LatentSync renders at 25 fps; bring the shot back to the source cadence so
+                # the composite stays frame-accurate (the overlay enables by time).
+                source_fps = _video_fps(clip)
+                if source_fps and abs(source_fps - 25.0) > 0.01:
+                    resampled = rendered.with_name(rendered.stem + f"-{source_fps:g}fps.mp4")
+                    subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", str(rendered), "-an", "-vf",
+                                    f"minterpolate=fps={source_fps:g}:mi_mode=blend", "-c:v", "libx264", "-crf", "14",
+                                    "-pix_fmt", "yuv420p", str(resampled)], check=True)
+                    generated = resampled
+            label = "LatentSync 1.6"
+        else:
+            command = [str(runtime), "-m", "scripts.inference", "--inference_config", str(config),
+                       "--result_dir", str(results), "--unet_model_path", str(model_dir / "unet.pth"),
+                       "--unet_config", str(model_dir / "musetalk.json"), "--whisper_dir",
+                       str(repo / "models/whisper"), "--version", "v15", "--use_float16",
+                       "--batch_size", "16", "--extra_margin", "10", "--parsing_mode", "jaw",
+                       "--ffmpeg_path", str(Path(shutil.which("ffmpeg") or "ffmpeg").parent)]
+            ok, tail = _run(command, repo, checkpoint)
+            generated = results / "v15" / result_name
+            label = "MuseTalk 1.5"
         if ok and generated.is_file():
             completed.append((generated, start, end, index))
-            cue.setdefault("qc", {})["visual_lipsync"] = "MuseTalk 1.5"
+            cue.setdefault("qc", {})["visual_lipsync"] = label
         else:
             cue.setdefault("qc", {})["visual_lipsync_error"] = tail[-600:]
         progress((position + 1) / len(candidates), index)
@@ -153,6 +190,6 @@ def apply_selective_lipsync(source: Path, cues: list[dict], dialogue_dir: Path, 
     subprocess.run(["ffmpeg", "-y", "-v", "error", *inputs, "-filter_complex", ";".join(graph),
                     "-map", f"[{current}]", "-an", "-c:v", "libx264", "-preset", "slow", "-crf", "16",
                     "-map_metadata", "0", str(output)], check=True)
-    return output, {"enabled": True, "ready": True, "selected": len(candidates),
+    return output, {"enabled": True, "ready": True, "engine": engine, "selected": len(candidates),
                     "completed": len(completed), "skipped": skipped,
                     "cue_ids": [index + 1 for *_, index in completed]}

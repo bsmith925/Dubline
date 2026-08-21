@@ -124,6 +124,11 @@ class Settings(BaseSettings):
     musetalk_model_dir: Path | None = None  # defaults to <musetalk_repo>/models/musetalkV15
     musetalk_runtime: Path = Path("vendor/musetalk-env")
     musetalk_max_shots: int = Field(default=0, ge=0)  # 0 = every eligible utterance
+    # Lip-sync engine. EXP-LIPSYNC-001 (2026-08-21): LatentSync 1.6 doubled SyncNet confidence and
+    # lifted identity 0.79 -> 0.95 vs MuseTalk at 2x runtime / 17.5 GB. Default flips after the suite run.
+    lipsync_engine: Literal["musetalk", "latentsync"] = "musetalk"
+    latentsync_repo: Path = Path("vendor/LatentSync")
+    latentsync_runtime: Path = Path("vendor/latentsync-env")
 
     # --- GPU pacing between isolated inference calls ------------------------
     dub_gpu_line_cooldown_seconds: float = Field(default=0.45, ge=0)
@@ -157,7 +162,7 @@ class Settings(BaseSettings):
         "dub_workdir", "indextts_repo", "whisper_cache_dir", "qwen_asr_model",
         "qwen_asr_escalation_model", "qwen_aligner_model", "bandit_repo", "roformer_model_dir",
         "translation_model", "translation_qc_model", "pyannote_model", "opencv_face_model_dir",
-        "qwen_tts_model", "musetalk_repo", mode="after",
+        "qwen_tts_model", "musetalk_repo", "latentsync_repo", mode="after",
     )
     @classmethod
     def _absolute(cls, value: Path) -> Path:
@@ -168,7 +173,7 @@ class Settings(BaseSettings):
     def _optional_absolute(cls, value: Path | None) -> Path | None:
         return _resolve(value) if value is not None else None
 
-    @field_validator("qwen_asr_runtime", "pyannote_runtime", "qwen_tts_runtime", "musetalk_runtime", mode="after")
+    @field_validator("qwen_asr_runtime", "pyannote_runtime", "qwen_tts_runtime", "musetalk_runtime", "latentsync_runtime", mode="after")
     @classmethod
     def _runtime(cls, value: Path) -> Path:
         return _resolve_runtime(value)
