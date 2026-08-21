@@ -169,7 +169,8 @@ def main() -> None:
     ap.add_argument("--out", type=Path, default=ROOT / "eval/runs/lipsync-001")
     ap.add_argument("--models", nargs="+", default=["musetalk", "latentsync"])
     args = ap.parse_args()
-    out = args.out; out.mkdir(parents=True, exist_ok=True)
+    out = args.out.resolve(); out.mkdir(parents=True, exist_ok=True)
+    args.job = args.job.resolve()
     cues = {int(c["id"]): c for c in json.loads((args.job / "cues.json").read_text())}
     from eval.dubline_eval.metrics.av_sync import score_interval
     from eval.dubline_eval import audio as A
@@ -188,7 +189,7 @@ def main() -> None:
             try:
                 rendered, cost = (run_musetalk if model == "musetalk" else run_latentsync)(frames_mp4, audio_wav, shot / model, tag)
             except subprocess.CalledProcessError as exc:
-                results["shots"][tag]["models"][model] = {"error": (exc.stderr or exc.stdout)[-600:]}; continue
+                results["shots"][tag]["models"][model] = {"error": (exc.stderr or exc.stdout)[-3000:]}; print(tag, model, "FAILED:", (exc.stderr or exc.stdout)[-1500:], flush=True); continue
             # mux identical audio onto the render for SyncNet and for viewing
             with_audio = shot / f"{model}-{tag}.mp4"
             sh(["ffmpeg", "-y", "-v", "error", "-i", str(rendered), "-i", str(audio_wav), "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac", "-shortest", str(with_audio)])
