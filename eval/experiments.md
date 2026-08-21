@@ -34,3 +34,14 @@ Two runs of identical production code (`20260821-022651` vs `20260821-140505`): 
 
 ## core-v1 baseline · running
 - First run of the frozen 10-clip suite on the accepted config (lengthening off, accurate clip seek, LatentSync). Reference for all later experiments; a second identical run establishes the noise floor.
+
+## EXP-AUDIO-003 — mute the whole re-voiced utterance, not only aligned word spans
+
+- **Trigger**: audible source "uhh" at 18.2–18.6 s under French "critiquer" (exp-4, job 4bf7a9d62b26), persists in a single-track file.
+- **Diagnosis**: stem − best-gain take residual = −42 dB at 18.2–18.6 s (floor −100 dB elsewhere). Aligned words: "criticize" ends 18.16, "Clean" starts 19.11 — a 0.95 s hole the aligner attached to no word, so word-span muting kept it as "non-verbal performance".
+- **Hypothesis**: inside a re-voiced utterance, anything in the source dialogue stem is replaced; muting the utterance span removes these bleed-throughs without touching non-verbal material *between* utterances.
+- **Variable**: `DUB_MUTE_WHOLE_UTTERANCE` (false → true). Offline A/B on identical takes (`render_timeline` only), 60 s of gb-fr.
+- **New metric**: `source_residual_under_take_db` / `source_residual_seconds_above_50db` (least-squares residual of the voice stem vs the placed take, per utterance).
+- **Expected**: residual-under-take → floor inside utterances; preserved source outside takes unchanged.
+- **Actual**: residual seconds > −50 dB **10.8 s → 1.9 s** (7 → 6 cues affected); preserved source outside takes 0.43 s → 0.43 s (identical). The 18.2 s bleed is gone. All remaining residual is in take **overrun**: every take ends 0.1–1.05 s after its utterance (cue 7: utt 59.16–67.32, take to 68.37) so the inter-utterance breath plays under the dub tail. Worst remaining: −25.6 dB at 68.1–68.3 s.
+- **Decision**: keep (default on). Remaining residual is a distinct defect — take extent exceeds utterance extent — to be characterized as EXP-AUDIO-004 (mute under the placed take extent vs constrain placement; one variable), not folded in here.

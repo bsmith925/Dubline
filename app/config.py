@@ -131,7 +131,7 @@ class Settings(BaseSettings):
     # rides gain and lifts near-silence), "linear" = two-pass loudnorm with one static gain.
     dub_mastering_mode: Literal["dynamic", "linear"] = "dynamic"
     # EXP-AUDIO-003: mute the whole span of a re-voiced utterance, not only its aligned words.
-    dub_mute_whole_utterance: bool = False
+    dub_mute_whole_utterance: bool = True
     latentsync_repo: Path = Path("vendor/LatentSync")
     latentsync_runtime: Path = Path("vendor/latentsync-env")
 
