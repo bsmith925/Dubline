@@ -1,0 +1,87 @@
+# core-v1 — FROZEN 2026-08-21. Do not edit clips in place; add a core-v2 instead.
+# 10 clips, ~11 minutes. Fingerprints are the first 16 hex of sha256 of the source file.
+# Segments were chosen from Whisper transcript density and ffmpeg scene-cut counts
+# (see eval/experiments.md), not by hand-picked timecodes.
+name: core-v1
+clips:
+  - id: gb-talking-head-fr
+    path: /mnt/media/dubline/sources/gingerbill-cleancode.en.1080p.mkv
+    fingerprint: sha256:3648df79fc5464e7
+    start: 0
+    end: 90
+    source_language: auto
+    target_language: French
+    tags: [single-talking-head, beard, hesitations, rapid-speech, pip-after-32s]
+  - id: gb-screenshare-pip-fr
+    path: /mnt/media/dubline/sources/gingerbill-cleancode.en.1080p.mkv
+    fingerprint: sha256:3648df79fc5464e7
+    start: 300
+    end: 380
+    source_language: auto
+    target_language: French
+    tags: [small-face, picture-in-picture, second-face-in-content, off-screen-speech]
+  - id: gb-es-roundtrip-en
+    path: /mnt/media/dubline/sources/gingerbill-cleancode.es.mkv
+    fingerprint: sha256:53ee830d9f7b4bc9
+    start: 0
+    end: 90
+    source_language: Spanish
+    target_language: English
+    tags: [synthetic-source-voice, reference-transcript, beard]
+    reference: youtube-captions:ZLxazlP7Ppo:en
+  - id: tos-rooftop-argument-fr
+    path: /mnt/media/dubline/sources/corpus/tears_of_steel_720p.mov
+    fingerprint: sha256:efa9062d9cdb7a33
+    start: 28
+    end: 92
+    source_language: English
+    target_language: French
+    tags: [two-speakers-alternating, cuts-inside-dialogue, expressive, profile, close-up]
+  - id: tos-lab-multispeaker-es
+    path: /mnt/media/dubline/sources/corpus/tears_of_steel_720p.mov
+    fingerprint: sha256:efa9062d9cdb7a33
+    start: 328
+    end: 392
+    source_language: English
+    target_language: Spanish
+    tags: [multi-speaker, overlap, many-cuts, off-screen-speech, short-interjections]
+  - id: tos-thom-celia-fr
+    path: /mnt/media/dubline/sources/corpus/tears_of_steel_720p.mov
+    fingerprint: sha256:efa9062d9cdb7a33
+    start: 290
+    end: 330
+    source_language: English
+    target_language: French
+    tags: [two-speakers, expressive, long-pauses, facial-occlusion]
+  - id: charade-hotel-banter-fr
+    path: /mnt/media/dubline/sources/corpus/charade_1963_1080p.mp4
+    fingerprint: sha256:8c48b1fe6446fffd
+    start: 358
+    end: 420
+    source_language: English
+    target_language: French
+    tags: [two-speakers-alternating, rapid-speech, cuts-inside-dialogue, film-grain]
+  - id: charade-funeral-es
+    path: /mnt/media/dubline/sources/corpus/charade_1963_1080p.mp4
+    fingerprint: sha256:8c48b1fe6446fffd
+    start: 928
+    end: 990
+    source_language: English
+    target_language: Spanish
+    tags: [slow-speech, long-pauses, profile-faces, multiple-speakers, wide-shots]
+  - id: charade-embassy-fr
+    path: /mnt/media/dubline/sources/corpus/charade_1963_1080p.mp4
+    fingerprint: sha256:8c48b1fe6446fffd
+    start: 1290
+    end: 1350
+    source_language: English
+    target_language: French
+    tags: [two-speakers, short-interjections, reaction-shots]
+  - id: charade-office-es
+    path: /mnt/media/dubline/sources/corpus/charade_1963_1080p.mp4
+    fingerprint: sha256:8c48b1fe6446fffd
+    start: 1380
+    end: 1440
+    source_language: English
+    target_language: Spanish
+    tags: [two-speakers, cuts-inside-dialogue, mustache]
