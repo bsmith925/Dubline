@@ -1857,9 +1857,16 @@ def remux(source: Path, audio: Path, output: Path, video_override: Path | None =
                 video_identity += ["-metadata:s:v:0", f"{key}={value}"]
         flags = [key for key, on in (probe_video.get("disposition") or {}).items() if on]
         video_identity += ["-disposition:v:0", "+".join(flags) if flags else "0"]
+    # Exactly one default audio track: the dub. Original audio tracks keep every other
+    # disposition flag; QC compares original streams ignoring the default flag on audio.
+    original_audio = [item for item in probe_media(source).get("streams", []) if item.get("codec_type") == "audio"]
+    audio_dispositions: list[str] = []
+    for position, stream in enumerate(original_audio, 1):
+        flags = [key for key, on in (stream.get("disposition") or {}).items() if on and key != "default"]
+        audio_dispositions += [f"-disposition:a:{position}", "+".join(flags) if flags else "0"]
     run("ffmpeg", "-y", "-v", "error", *inputs,
         "-map", video_map, "-map", "1:a:0", "-map", "0:a?", "-map", "0:s?", "-map", "0:d?", "-map", "0:t?",
-        "-map_metadata", "0", "-map_chapters", "0", "-c", "copy", *video_identity,
+        "-map_metadata", "0", "-map_chapters", "0", "-c", "copy", *video_identity, *audio_dispositions,
         "-metadata:s:a:0", f"language={iso2(target_language)}",
         "-metadata:s:a:0", f"title={target_language} AI Dub · FLAC delivery master",
         # The dub is the deliverable: flag it default so players pick it. The

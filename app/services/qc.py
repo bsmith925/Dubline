@@ -250,7 +250,10 @@ def _stream_identity(stream: dict) -> dict:
         "channels": stream.get("channels"), "layout": stream.get("channel_layout"),
         "width": stream.get("width"), "height": stream.get("height"),
         "language": tags.get("language"), "title": tags.get("title"),
-        "disposition": {key: value for key, value in disposition.items() if value},
+        # The delivered file has exactly one default audio track (the dub); original audio
+        # tracks are compared without their default flag, everything else must match.
+        "disposition": {key: value for key, value in disposition.items()
+                        if value and not (stream.get("codec_type") == "audio" and key == "default")},
     }
 
 
