@@ -169,7 +169,7 @@ def main() -> None:
             continue
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         _, faces = detector.detect(frame)
-        observations: dict[int, tuple[float, float]] = {}
+        observations: dict[int, tuple[float, float, tuple[float, float, float, float]]] = {}
         for face in ([] if faces is None else faces):
             x, y, w, h = face[:4]
             if min(w, h) < 34 or w * h < width * height * .00045:
@@ -199,18 +199,20 @@ def main() -> None:
                 previous_mouth[identity] = (patch, frame_index)
             identity += 1
             area = float(w * h / (width * height))
+            box = (float(x) / width, float(y) / height, float(w) / width, float(h) / height)
             if identity not in observations or area > observations[identity][1]:
-                observations[identity] = (motion, area)
+                observations[identity] = (motion, area, box)
         for cue in active:
             target = result[int(cue["id"])]
             target["samples"] += 1
             target["max_concurrent_faces"] = max(target["max_concurrent_faces"], len(observations))
             target["single_face_samples"] += int(len(observations) == 1)
-            for identity, (motion, area) in observations.items():
-                face_data = target["faces"].setdefault(str(identity), {"visible": 0, "motions": [], "area": 0.0})
+            for identity, (motion, area, box) in observations.items():
+                face_data = target["faces"].setdefault(str(identity), {"visible": 0, "motions": [], "area": 0.0, "boxes": []})
                 face_data["visible"] += 1
                 face_data["motions"].append(motion)
                 face_data["area"] = max(face_data["area"], area)
+                face_data["boxes"].append(box)
         if registry_scan and frame_index >= next_registry_checkpoint:
             save_partial()
             next_registry_checkpoint = frame_index + registry_checkpoint_interval
@@ -245,7 +247,16 @@ def main() -> None:
         # shot.  In multi-face film coverage it is useful visibility evidence,
         # but not a substitute for a trained active-speaker model.
         single_face_ratio = min(1.0, float(data["single_face_samples"]) / samples)
-        confidence *= min(1.0, single_face_ratio / .60)
+        if os.getenv("LIPSYNC_FACE_CROP", "0") in ("1", "true", "True"):
+            # VIDEO-007: with several face tracks, trust the ranking when one mouth clearly
+            # dominates (a picture-in-picture speaker next to a static face in slides; a
+            # two-shot where only one actor talks). dominance = 1 - second/best.
+            dominance = 0.0 if best[0] <= 0 else max(0.0, 1.0 - second / best[0])
+            confidence *= max(min(1.0, single_face_ratio / .60), min(1.0, dominance / .80))
+        else:
+            confidence *= min(1.0, single_face_ratio / .60)
+        boxes = data["faces"].get(str(best[1]), {}).get("boxes") or []
+        box = [round(float(np.median([b[i] for b in boxes])), 5) for i in range(4)] if boxes else None
         output.append({
             "id": cue["id"], "visible_faces": int(data["max_concurrent_faces"]),
             "distinct_face_tracks": len(ranked),
@@ -255,6 +266,7 @@ def main() -> None:
             "mouth_visibility": round(best[2], 3), "mouth_motion": round(best[3], 4),
             "mouth_visible": bool(confidence >= .56 and best[2] >= .55 and best[4] >= .0012),
             "face_area_ratio": round(best[4], 5),
+            "active_face_box": box if confidence >= .56 else None,
         })
     args.output.write_text(json.dumps(output, ensure_ascii=False, indent=2), encoding="utf-8")
     if args.registry_output:

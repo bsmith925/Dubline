@@ -104,7 +104,7 @@ def apply_selective_lipsync(source: Path, cues: list[dict], dialogue_dir: Path, 
             reason = "source performance kept"
         elif not cue.get("mouth_visible"):
             reason = "mouth not visible"
-        elif visual.get("visible_faces") != 1:
+        elif visual.get("visible_faces") != 1 and not (settings.lipsync_face_crop and visual.get("active_face_box")):
             reason = "not exactly one face"
         elif float(visual.get("active_speaker_confidence") or 0) < .82:
             reason = "uncertain active speaker"
@@ -124,7 +124,8 @@ def apply_selective_lipsync(source: Path, cues: list[dict], dialogue_dir: Path, 
 
     work = folder / "musetalk-finishing"; work.mkdir(exist_ok=True)
     results = work / "results"; results.mkdir(exist_ok=True)
-    completed: list[tuple[Path, float, float, int]] = []
+    completed: list[tuple[Path, float, float, int, int, int]] = []
+    frame_w, frame_h = int(primary.get("width") or 0), int(primary.get("height") or 0)
     for position, (index, cue) in enumerate(candidates):
         checkpoint()
         padding = .12
@@ -144,13 +145,26 @@ def apply_selective_lipsync(source: Path, cues: list[dict], dialogue_dir: Path, 
                 audio_offset = max(0.0, first_voice - padding)
         clip = work / f"cue-{index + 1:06d}-source.mp4"
         audio = work / f"cue-{index + 1:06d}-audio.wav"
+        crop: list[str] = []; crop_x = crop_y = 0
+        box = (cue.get("visual_speaker") or {}).get("active_face_box")
+        if settings.lipsync_face_crop and box and frame_w and frame_h:
+            # VIDEO-007: render only a square region around the active face (1.8x the face
+            # box) so the renderer cannot pick another face, and paste it back in place.
+            bx, by, bw, bh = [float(v) for v in box]
+            side = min(max(bw * frame_w, bh * frame_h) * 1.8, frame_w, frame_h)
+            side = int(side // 2 * 2)
+            cx, cy = (bx + bw / 2) * frame_w, (by + bh / 2) * frame_h
+            crop_x = int(min(max(0, cx - side / 2), frame_w - side)) // 2 * 2
+            crop_y = int(min(max(0, cy - side / 2), frame_h - side)) // 2 * 2
+            crop = ["-vf", f"crop={side}:{side}:{crop_x}:{crop_y}"]
+            cue.setdefault("qc", {})["visual_lipsync_crop"] = [crop_x, crop_y, side]
         # Keep the first/last 120 ms silent so the regenerated mouth blends at shot boundaries.
         # Native frame rate: MuseTalk scales its audio window by 50/fps, and keeping the
         # source cadence lets the edited shot composite back frame-accurately.
         # Seek accurately and cut by duration (input "-to" near the start of a file
         # produced clips that began at t=0; measured 1.27-1.32x over-length on first shots).
         subprocess.run(["ffmpeg", "-y", "-v", "error", "-accurate_seek", "-ss", f"{start:.3f}", "-i", str(source),
-                        "-t", f"{max(0.04, end - start):.3f}", "-an", "-c:v", "libx264", "-crf", "14",
+                        "-t", f"{max(0.04, end - start):.3f}", "-an", *crop, "-c:v", "libx264", "-crf", "14",
                         "-pix_fmt", "yuv420p", "-video_track_timescale", "90000", str(clip)],
                        check=True)
         duration = max(.1, end - start)
@@ -201,7 +215,7 @@ def apply_selective_lipsync(source: Path, cues: list[dict], dialogue_dir: Path, 
             generated = results / "v15" / result_name
             label = "MuseTalk 1.5"
         if ok and generated.is_file():
-            completed.append((generated, start, end, index))
+            completed.append((generated, start, end, index, crop_x, crop_y))
             cue.setdefault("qc", {})["visual_lipsync"] = label
             cue["qc"]["visual_lipsync_interval"] = [round(start, 3), round(end, 3)]
         else:
@@ -225,7 +239,7 @@ def apply_selective_lipsync(source: Path, cues: list[dict], dialogue_dir: Path, 
     graph = [f"[0:v:0]setpts=PTS-STARTPTS+{skew:.6f}/TB[base0]"]
     current = "base0"
     base_fps = _video_fps(source) or 25.0
-    for number, (clip, start, end, _) in enumerate(completed, 1):
+    for number, (clip, start, end, _, at_x, at_y) in enumerate(completed, 1):
         inputs += ["-i", str(clip)]
         shifted = f"clip{number}"; merged = f"base{number}"
         # VIDEO-006: place the clip on the base frame grid (snap down). Placing at the raw
@@ -233,11 +247,11 @@ def apply_selective_lipsync(source: Path, cues: list[dict], dialogue_dir: Path, 
         # offset −1 frame on 23.976 and 30 fps sources; offline A/B floor/ceil/±1 frame).
         start = math.floor(start * base_fps + 1e-6) / base_fps
         graph.append(f"[{number}:v:0]setpts=PTS-STARTPTS+{start:.6f}/TB[{shifted}]")
-        graph.append(f"[{current}][{shifted}]overlay=eof_action=pass:shortest=0:enable='between(t,{start:.6f},{end:.6f})'[{merged}]")
+        graph.append(f"[{current}][{shifted}]overlay=x={at_x}:y={at_y}:eof_action=pass:shortest=0:enable='between(t,{start:.6f},{end:.6f})'[{merged}]")
         current = merged
     subprocess.run(["ffmpeg", "-y", "-v", "error", *inputs, "-filter_complex", ";".join(graph),
                     "-map", f"[{current}]", "-an", "-c:v", "libx264", "-preset", "slow", "-crf", "16",
                     "-map_metadata", "0", str(output)], check=True)
     return output, {"enabled": True, "ready": True, "engine": engine, "selected": len(candidates),
                     "completed": len(completed), "skipped": skipped,
-                    "cue_ids": [index + 1 for *_, index in completed]}
+                    "cue_ids": [item[3] + 1 for item in completed]}
