@@ -62,7 +62,8 @@ def _untranslated_rate(source: str, target: str, target_language: str) -> float 
 
 
 def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
-             t_max: float | None = None, mouth_fps: float = 15.0, job: dict | None = None) -> tuple[list[UtteranceRecord], ClipRecord, dict]:
+             t_max: float | None = None, mouth_fps: float = 15.0, job: dict | None = None,
+             original: Path | None = None, clip_start: float = 0.0) -> tuple[list[UtteranceRecord], ClipRecord, dict]:
     """``job`` is the final job record from the server API (cues.json on disk predates the
     lip-sync stage and lacks its per-line results and the delivery QC)."""
     work.mkdir(parents=True, exist_ok=True)
@@ -171,8 +172,7 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
                 mouth_sharpness_ratio=(E.mouth_sharpness_ratio(job_dir / "selected-source.mkv", job_dir / "dubbed-english.mkv",
                                                                [lipsync_interval], t_end) if lipsync_applied and lipsync_interval else None),
                 boundary_jump_x_median=None,
-                render_lag_ms=(E.render_lag_ms(job_dir / "selected-source.mkv", job_dir / "dubbed-english.mkv", lipsync_interval).get("render_lag_ms")
-                               if lipsync_interval and (job_dir / "dubbed-english.mkv").is_file() and (lipsync_interval[1] - lipsync_interval[0]) > 1.0 else None),
+                render_lag_ms=None,   # superseded by the clip-level picture_offset (measured against the ORIGINAL source)
                 source_residual_under_take_db=resid.get("max_window_db"),
                 source_residual_seconds_above_50db=resid.get("seconds_above_-50db"),
                 mouth_motion_on_silence=motion_on_silence, speech_on_static_mouth=speech_on_static,
@@ -196,6 +196,9 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
     unmuted = E.unmuted_source_speech(job_dir / "cinema-dialogue.flac", cues, t_end)
     overlaps = E.take_overlaps(job_dir, cues)
     defaults = E.audio_default_tracks(job_dir / "dubbed-english.mkv")
+    pic = (E.picture_offset(original, job_dir / "dubbed-english.mkv", clip_start, ls_intervals, t_end)
+           if original is not None and original.is_file() and (job_dir / "dubbed-english.mkv").is_file() else {})
+    (work / "picture-offset.json").write_text(json.dumps(pic))
     mos_total = A.total(A.subtract(out_artic, dub_speech)) if out_mouth else None
     mixfid = (mix_fidelity(job_dir / "working-soundtrack-48k.flac", job_dir / "english-mix.flac", dub_speech, t_end,
                            source_me=job_dir / "cinema-background.flac") if (job_dir / "english-mix.flac").is_file() else {})
@@ -217,6 +220,8 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
         dead_air_seconds=dead.get("seconds"), unmuted_source_speech_seconds=unmuted.get("seconds"),
         take_overlap_seconds=overlaps.get("seconds"), default_audio_streams=defaults.get("default_audio_streams"),
         mouth_motion_on_silence_total_s=mos_total, boundary_jump_max_x_median=jumps.get("max_jump_x_median"),
+        picture_offset_outside_lipsync_frames=pic.get("outside_lipsync_frames"),
+        picture_offset_inside_lipsync_frames=pic.get("inside_lipsync_frames"),
         mouth_sharpness_ratio=(E.mouth_sharpness_ratio(job_dir / "selected-source.mkv", job_dir / "dubbed-english.mkv", ls_intervals, t_end)
                                if ls_intervals else None),
         mix_fidelity=mixfid, video_fidelity=vidfid,

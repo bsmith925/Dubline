@@ -267,9 +267,16 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
             source = folder / "selected-source.mkv"
             if not source.is_file():
                 update(2.5, f"Extracting selected section · {format_duration(range_start)} to {format_duration(range_end)}")
-                run("ffmpeg", "-y", "-v", "error", "-i", str(original_source),
-                    "-ss", f"{range_start:.3f}", "-t", f"{range_end - range_start:.3f}",
+                # Input-side seek: stream copy starts both streams at the keyframe at or before
+                # range_start. Output-side "-ss" dropped the first video GOP (video began at the
+                # next keyframe, 4.03 s late on a 30 fps source) while audio began at 0; the
+                # composite then rebased the picture to 0 and delivered it 4 s early.
+                run("ffmpeg", "-y", "-v", "error", "-ss", f"{range_start:.3f}", "-i", str(original_source),
+                    "-t", f"{range_end - range_start:.3f}",
                     "-map", "0", "-c", "copy", "-avoid_negative_ts", "make_zero", str(source))
+                starts = probe_stream_starts(source)
+                if starts and max(starts) - min(starts) > 0.05:
+                    raise RuntimeError(f"Selected section streams do not start together: {starts}")
             log(f"Selected {format_duration(range_start)} to {format_duration(range_end)}; "
                 "the delivered MKV will contain this section")
         probe = probe_media(source)
@@ -836,6 +843,91 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
 
             synthesize(retry_items, "timing retries", retry_progress)
             persist_cues(force=True)
+
+        if settings.dub_select_by_measured_duration:
+            # EXP-TIMING-001: word counts predict spoken duration to only ±35 % (French TTS
+            # runs 1.9-4.1 words/s), so the adapter's duration pass regularly picks a
+            # version that fills half the slot or overruns it. For takes that fit poorly,
+            # voice the faithful translation and the other adapter candidates, MEASURE them,
+            # and keep the one that best fills the slot without needing compression.
+            poor = [index for index, cue in enumerate(cues)
+                    if not cue.get("nonverbal_filler") and float(cue.get("target_seconds") or 0.0) >= 1.5
+                    and (float(cue.get("qc", {}).get("active_fill_percent") or 100.0) < 75.0
+                         or abs(float(cue.get("qc", {}).get("stretch_percent") or 0.0)) > (5.0 if cue.get("mouth_visible") else 8.0))]
+            candidate_items: list[dict] = []
+            candidate_dir = folder / "generated-candidates"
+            texts_by_cue: dict[int, list[str]] = {}
+            for index in poor:
+                cue = cues[index]
+                judged = {int(item.get("index", -1)): item for item in (cue.get("candidate_semantic_scores") or []) if isinstance(item, dict)}
+                options_for_cue = []
+                faithful = str(cue.get("faithful_translation") or cue.get("literal_translation") or "").strip()
+                if faithful:
+                    options_for_cue.append(faithful)                         # always adequate by construction
+                for candidate_index, candidate in enumerate(cue.get("translation_candidates") or [], 1):
+                    if float(judged.get(candidate_index, {}).get("adequacy", 0.0)) >= .65:
+                        options_for_cue.append(str(candidate).strip())
+                current = str(cue.get("spoken_text") or "")
+                options_for_cue = [t for t in dict.fromkeys(options_for_cue) if t and apply_glossary(t) != current]
+                if not options_for_cue:
+                    continue
+                texts_by_cue[index] = options_for_cue
+                for k, text in enumerate(options_for_cue, 1):
+                    item = dict(items_by_cue[index])
+                    item["text"] = apply_glossary(text)
+                    item["raw"] = str(candidate_dir / f"{index + 1:06d}-{k}.wav")
+                    item["fitted"] = str(candidate_dir / f"{index + 1:06d}-{k}-fitted.wav")
+                    item["cue_index"] = index + 100000 * k                   # decoded in the callback
+                    candidate_items.append(item)
+            measured_candidates: dict[int, dict[int, dict]] = {}
+
+            def candidate_progress(event: dict) -> None:
+                code = int(event["cue_index"] if "cue_index" in event else event["index"])
+                index, k = code % 100000, code // 100000
+                measured_candidates.setdefault(index, {})[k] = event
+                update(80.6 + float(event["progress"]) * 0.2, f"Measuring alternative phrasings for line {index + 1}")
+
+            if candidate_items:
+                update(80.6, f"Voicing {len(candidate_items)} alternative phrasing(s) for {len(texts_by_cue)} poorly fitting line(s)")
+                with gpu_stage(folder, f"{engine_label} candidate measurement", checkpoint):
+                    if voice_engine == "qwen-tts":
+                        synthesize_qwen_fallback(candidate_items, folder, candidate_progress, checkpoint, pass_name="candidates")
+                    else:
+                        synthesize_voice_lines({"engine": options.get("engine", "indextts"), "items": candidate_items},
+                                               folder, candidate_progress, checkpoint)
+                switched = 0
+                for index, texts in texts_by_cue.items():
+                    cue = cues[index]; target = float(cue.get("target_seconds") or 0.0)
+                    limit = 5.0 if cue.get("mouth_visible") else 8.0
+                    def fitness(active: float, stretch: float) -> float:
+                        # Reward filling the slot; anything needing more compression than the
+                        # timing QC allows is out; prefer the longest acceptable take.
+                        if abs(stretch) > limit or active <= 0:
+                            return -1.0
+                        return min(1.0, active / max(0.1, target))
+                    current_qc = cue.get("qc", {})
+                    best = (fitness(float(current_qc.get("active_duration") or 0.0), float(current_qc.get("stretch_percent") or 0.0)), 0, None)
+                    for k, event in measured_candidates.get(index, {}).items():
+                        score = fitness(float(event.get("active_duration") or 0.0), float(event.get("stretch_percent") or 0.0))
+                        if score > best[0] + 0.02:
+                            best = (score, k, event)
+                    cue.setdefault("qc", {})["candidate_measurements"] = {
+                        str(k): {"text": texts[k - 1], "active_duration": e.get("active_duration"), "stretch_percent": e.get("stretch_percent"),
+                                 "active_fill_percent": e.get("active_fill_percent")} for k, e in measured_candidates.get(index, {}).items()}
+                    if best[1]:
+                        k, event = best[1], best[2]
+                        shutil.copyfile(candidate_dir / f"{index + 1:06d}-{k}.wav", generated / f"{index + 1:06d}.wav")
+                        shutil.copyfile(candidate_dir / f"{index + 1:06d}-{k}-fitted.wav", fitted / f"{index + 1:06d}.wav")
+                        cue["english"] = texts[k - 1]; cue["adapted_dialogue"] = texts[k - 1]
+                        cue["spoken_text"] = apply_glossary(texts[k - 1])
+                        cue["qc"].update({"raw_duration": event.get("raw_duration"), "stretch_percent": event.get("stretch_percent"),
+                                          "active_duration": event.get("active_duration"), "active_fill_percent": event.get("active_fill_percent"),
+                                          "padding_ms": event.get("padding_ms"), "phrase_count": event.get("phrase_count"),
+                                          "slowdown_percent": event.get("slowdown_percent"), "selected_by_measured_duration": True})
+                        cue["adaptation_model"] = f"{cue.get('adaptation_model') or 'translation'} · measured-duration selection"
+                        switched += 1
+                log(f"Measured-duration selection: {switched} of {len(texts_by_cue)} poorly fitting line(s) switched phrasing")
+                persist_cues(force=True)
 
         short_failures = [
             index for index, cue in enumerate(cues)
@@ -1470,6 +1562,19 @@ def write_silence(path: Path, seconds: float, rate: int = 24_000) -> None:
     import soundfile as sf
     path.parent.mkdir(parents=True, exist_ok=True)
     sf.write(path, np.zeros(max(1, round(seconds * rate)), dtype=np.float32), rate, subtype="PCM_16")
+
+
+def probe_stream_starts(path: Path) -> list[float]:
+    """First packet time of every stream (seconds), for sanity-checking stream copies."""
+    text = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=start_time", "-of", "csv=p=0", str(path)],
+                          capture_output=True, text=True).stdout
+    out = []
+    for line in text.splitlines():
+        try:
+            out.append(float(line.strip().strip(",")))
+        except ValueError:
+            pass
+    return out
 
 
 def render_timeline(cues: list[dict], fitted_dir: Path, output: Path, duration: float,

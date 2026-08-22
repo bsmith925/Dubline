@@ -90,7 +90,8 @@ def run(suite_path: Path, server: str, jobs_root: Path, out_root: Path, runtimes
             (out / "work" / clip["id"]).mkdir(parents=True, exist_ok=True)
             (out / "work" / clip["id"] / "job.json").write_text(json.dumps(job_record, ensure_ascii=False))
             records, clip_record, timeline = evaluate(job_dir, clip["id"], runtimes, out / "work" / clip["id"],
-                                                      mouth_fps=mouth_fps, job=job_record)
+                                                      mouth_fps=mouth_fps, job=job_record,
+                                                      original=Path(clip["path"]), clip_start=float(clip.get("start") or 0.0))
             for r in records:
                 uf.write(json.dumps(r.to_dict(), ensure_ascii=False) + "\n")
             cf.write(json.dumps(clip_record.to_dict(), ensure_ascii=False) + "\n")

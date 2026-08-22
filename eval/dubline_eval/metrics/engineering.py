@@ -185,3 +185,55 @@ def render_lag_ms(source: Path, output: Path, interval: list[float], samples: in
         if same[0] - best[0] > 0.3 or best[1] == 0:   # count unambiguous instants and exact matches
             lags.append(best[1] * 1000.0 / fps)
     return {"render_lag_ms": round(float(np.median(lags)), 1) if lags else None, "samples": len(lags)}
+
+
+def picture_offset(original: Path, output: Path, clip_start: float, lipsync_intervals: list[list[float]], t_end: float,
+                   samples: int = 10, search_frames: int = 150) -> dict:
+    """Picture timing of the delivered video against the ORIGINAL source (not the job's working copy).
+
+    For sampled instants t (in output time) the best-matching original frame is searched within
+    ±search_frames around clip_start + t, on the frame border (outside the central face area).
+    Reported in frames: negative = output shows older content, positive = output runs ahead.
+    Inside and outside lip-synced windows are reported separately: a composite that rebases the
+    base video but places rendered clips by timestamp shows up as a difference between the two.
+    """
+    co = cv2.VideoCapture(str(output)); fps = co.get(cv2.CAP_PROP_FPS) or 30.0
+    mask = np.ones((270, 480), bool); mask[27:216, 144:336] = False
+    def gray(f):
+        return cv2.cvtColor(cv2.resize(f, (480, 270)), cv2.COLOR_BGR2GRAY).astype(np.float32)[mask]
+    inside_t = [t for t in np.linspace(0.5, t_end - 0.5, samples) if any(a <= t <= b for a, b in lipsync_intervals)]
+    outside_t = [t for t in np.linspace(0.5, t_end - 0.5, samples) if not any(a <= t <= b for a, b in lipsync_intervals)]
+    targets = sorted({int(round(t * fps)) for t in inside_t + outside_t})
+    out = {}; i = 0
+    while targets and i <= targets[-1]:
+        ok, f = co.read()
+        if not ok:
+            break
+        if i in targets:
+            out[i] = gray(f)
+        i += 1
+    co.release()
+    if not out:
+        return {"outside_lipsync_frames": None, "inside_lipsync_frames": None, "samples": 0}
+    base = int(round(clip_start * fps))
+    lo, hi = base + min(out) - search_frames, base + max(out) + search_frames
+    cs = cv2.VideoCapture(str(original)); src = {}; j = 0
+    while j <= hi:
+        ok, f = cs.read()
+        if not ok:
+            break
+        if j >= lo:
+            src[j] = gray(f)
+        j += 1
+    cs.release()
+    def offset_at(i):
+        cands = [(float(np.mean(np.abs(out[i] - src[k]))), k - (base + i)) for k in range(base + i - search_frames, base + i + search_frames + 1) if k in src]
+        if not cands:
+            return None
+        best = min(cands); second = sorted(c[0] for c in cands)[min(len(cands) - 1, 3)]
+        return best[1] if second - best[0] > 0.25 else None       # unambiguous matches only
+    ins = [o for o in (offset_at(int(round(t * fps))) for t in inside_t) if o is not None]
+    outs = [o for o in (offset_at(int(round(t * fps))) for t in outside_t) if o is not None]
+    med = lambda xs: round(float(np.median(xs)), 1) if xs else None
+    return {"outside_lipsync_frames": med(outs), "inside_lipsync_frames": med(ins), "fps": fps,
+            "outside_values": outs, "inside_values": ins, "samples": len(ins) + len(outs)}

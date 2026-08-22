@@ -137,6 +137,8 @@ class Settings(BaseSettings):
     lipsync_pre_resample_25: bool = True
     # EXP-VIDEO-004: animate the mouth over the utterance span, or only where the take is voiced.
     lipsync_extent: Literal["utterance", "voiced"] = "utterance"
+    # EXP-TIMING-001: for poorly fitting takes, voice the adapter's candidates and pick by MEASURED duration.
+    dub_select_by_measured_duration: bool = False
     latentsync_repo: Path = Path("vendor/LatentSync")
     latentsync_runtime: Path = Path("vendor/latentsync-env")
 
