@@ -224,6 +224,7 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
         dead_air_seconds=dead.get("seconds"), unmuted_source_speech_seconds=unmuted.get("seconds"),
         take_overlap_seconds=overlaps.get("seconds"), default_audio_streams=defaults.get("default_audio_streams"),
         mouth_motion_on_silence_total_s=mos_total, boundary_jump_max_x_median=jumps.get("max_jump_x_median"),
+        lipsync_coverage=(round(A.total(A.intersect(dub_speech, ls_intervals)) / A.total(dub_speech), 3) if dub_speech and ls_intervals else (0.0 if dub_speech else None)),
         picture_offset_outside_lipsync_frames=pic.get("outside_lipsync_frames"),
         picture_offset_inside_lipsync_frames=pic.get("inside_lipsync_frames"),
         picture_sync_inside_minus_outside_frames=(round(pic["inside_lipsync_frames"] - pic["outside_lipsync_frames"], 1)

@@ -160,6 +160,7 @@ class ClipRecord:
     default_audio_streams: int | None = None               # should be exactly 1
     mouth_motion_on_silence_total_s: float | None = None   # whole timeline, not just inside utterances
     boundary_jump_max_x_median: float | None = None
+    lipsync_coverage: float | None = None                   # share of dub speech time inside rendered lip-sync windows
     picture_offset_outside_lipsync_frames: float | None = None   # delivered picture vs ORIGINAL source, outside lip-sync windows (0 = in sync)
     picture_offset_inside_lipsync_frames: float | None = None
     picture_sync_inside_minus_outside_frames: float | None = None   # the sync defect itself; 0 = rendered clips sit exactly on the base
