@@ -132,6 +132,12 @@ class Settings(BaseSettings):
     dub_mastering_mode: Literal["dynamic", "linear", "peak_safe"] = "peak_safe"
     # peak_safe: how much the safety limiter may work on the loudest peaks (dB over the ceiling).
     dub_master_limiter_allowance_db: float = 3.0
+    # MIX-004: cap on the gain that matches a take to the source performance level (was 12 dB
+    # and saturated on every cue of film content: takes landed 10-17 dB under the dialogue).
+    dub_level_match_max_db: float = 12.0
+    # MIX-005: mix balance of the dub voice against the separated bed (stereo/mono path).
+    dub_voice_gain_db: float = 0.0
+    dub_duck_ratio: float = 2.0
     # EXP-AUDIO-003: mute the whole span of a re-voiced utterance, not only its aligned words.
     dub_mute_whole_utterance: bool = True
     # EXP-VIDEO-003: feed LatentSync an exact fps=25 clip instead of letting it run `ffmpeg -r 25`

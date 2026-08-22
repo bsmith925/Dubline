@@ -1648,7 +1648,8 @@ def render_timeline(cues: list[dict], fitted_dir: Path, output: Path, duration: 
             if stereo:
                 generated_rms = float(np.sqrt(np.mean(segment * segment) + 1e-12))
                 source = cue.get("source_performance", {})
-                gain = np.clip(float(source.get("rms", generated_rms)) / max(generated_rms, 1e-6), 0.5, 2.0)
+                gain = np.clip(float(source.get("rms", generated_rms)) / max(generated_rms, 1e-6), 0.5,
+                               10 ** (settings.dub_level_match_max_db / 20))
                 pan = float(source.get("pan", 0.0))
                 angle = (pan + 1.0) * np.pi / 4
                 placed = np.stack((segment * np.cos(angle), segment * np.sin(angle)), axis=1) * gain
@@ -1720,7 +1721,7 @@ def match_acoustics(cues: list[dict], fitted_dir: Path, output_dir: Path,
         values, rate = sf.read(output, dtype="float32", always_2d=True)
         current_rms = float(np.sqrt(np.mean(values * values) + 1e-12))
         source_rms = float(performance.get("rms", current_rms))
-        gain = float(np.clip(source_rms / max(current_rms, 1e-6), .5, 4.0))
+        gain = float(np.clip(source_rms / max(current_rms, 1e-6), .5, 10 ** (settings.dub_level_match_max_db / 20)))
         sf.write(output, np.clip(values * gain, -.94, .94), rate, subtype="PCM_16")
         cue["acoustic_match"] = {
             "distance": distance, "lowpass_hz": lowpass,
@@ -1760,10 +1761,11 @@ def mix_audio(source: Path, voice: Path, output: Path, duration: float, mode: st
                 "alimiter=limit=0.95:level=0[mix]"
             )
         else:
+            voice_gain = 1.05 * 10 ** (settings.dub_voice_gain_db / 20)
             graph = (
                 "[0:a]aresample=48000[bed];"
-                "[1:a]aresample=48000,volume=1.05,asplit=2[voice][key];"
-                "[bed][key]sidechaincompress=threshold=0.02:ratio=2:attack=12:release=220[ducked];"
+                f"[1:a]aresample=48000,volume={voice_gain:.4f},asplit=2[voice][key];"
+                f"[bed][key]sidechaincompress=threshold=0.02:ratio={settings.dub_duck_ratio:g}:attack=12:release=220[ducked];"
                 "[ducked][voice]amix=inputs=2:duration=longest:dropout_transition=0,alimiter=limit=0.95:level=0[mix]"
             )
     else:
