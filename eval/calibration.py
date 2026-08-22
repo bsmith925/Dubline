@@ -64,6 +64,9 @@ def snippet_metrics(snippet: Path, source_snippet: Path, work: Path) -> dict:
     work.mkdir(parents=True, exist_ok=True)
     dur = float(sh(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(snippet)]).stdout.strip())
     wav = work / (snippet.stem + ".wav"); sh(["ffmpeg", "-y", "-v", "error", "-i", str(snippet), "-ac", "1", "-ar", "16000", str(wav)])
+    src_wav = work / (source_snippet.stem + ".wav")
+    if not src_wav.is_file():
+        sh(["ffmpeg", "-y", "-v", "error", "-i", str(source_snippet), "-ac", "1", "-ar", "16000", str(src_wav)])
     dub = A.speech_intervals(wav, thresh_db=-40)
     musetalk_py = ROOT / "vendor/musetalk-env/bin/python"
     mouth = mouth_series(snippet, musetalk_py, dur, 15.0, work / (snippet.stem + "-mouth.json"))
@@ -80,7 +83,7 @@ def snippet_metrics(snippet: Path, source_snippet: Path, work: Path) -> dict:
             "sync_low_conf_fraction": so.get("low_conf_fraction"),
             "aperture_ratio": round(ap_out / ap_src, 3) if ap_src and ap_out else None,
             "mouth_sharpness_ratio": E.mouth_sharpness_ratio(source_snippet, snippet, [[0, dur]], dur),
-            "dead_air_s": E.dead_air(source_snippet, wav, dur).get("seconds")}
+            "dead_air_s": E.dead_air(src_wav, wav, dur).get("seconds")}
 
 
 def make(args) -> None:
