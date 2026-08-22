@@ -868,7 +868,8 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
             # and keep the one that best fills the slot without needing compression.
             poor = [index for index, cue in enumerate(cues)
                     if not cue.get("nonverbal_filler") and float(cue.get("target_seconds") or 0.0) >= 1.5
-                    and (float(cue.get("qc", {}).get("active_fill_percent") or 100.0) < 75.0
+                    and (settings.dub_measure_all_takes
+                         or float(cue.get("qc", {}).get("active_fill_percent") or 100.0) < 75.0
                          or abs(float(cue.get("qc", {}).get("stretch_percent") or 0.0)) > (5.0 if cue.get("mouth_visible") else 8.0))]
             candidate_items: list[dict] = []
             candidate_dir = folder / "generated-candidates"

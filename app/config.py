@@ -156,6 +156,8 @@ class Settings(BaseSettings):
     translation_per_line: bool = True
     # EXP-TIMING-002: adapter duration model uses measured per-language TTS speaking rates.
     adapter_language_rates: bool = False
+    # EXP-TIMING-003: measure alternative phrasings for every take, not only poorly fitting ones.
+    dub_measure_all_takes: bool = False
     latentsync_repo: Path = Path("vendor/LatentSync")
     latentsync_runtime: Path = Path("vendor/latentsync-env")
 
