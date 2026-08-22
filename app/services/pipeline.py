@@ -509,6 +509,19 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                 log(f"Dialogue confidence gate recovered {selection['recovered_cues']} of "
                     f"{selection['total_cues']} lines missed by the cinematic stem "
                     f"({selection.get('roformer_cues', 0)} RoFormer, {selection.get('demucs_cues', 0)} HTDemucs)")
+        if (settings.dub_adaptive_background and audio_mode == "separate" and background_stem is not None
+                and background_stem.is_file() and any(cue.get("dialogue_source", "Bandit cinematic") != "Bandit cinematic" for cue in cues)):
+            # SEP-002: where the cinematic separator left a line out of its dialogue stem, that
+            # voice is still inside its background stem and would play under the dub. Rebuild
+            # the bed over those cues as film mix minus the vocal stem the confidence gate chose.
+            adaptive_bed = folder / "cinema-background-adaptive.flac"
+            if not adaptive_bed.is_file():
+                update(34.7, "Removing recovered voice lines from the background bed")
+                replaced = build_adaptive_background(
+                    film_mix, background_stem, cues, adaptive_bed,
+                    {"HTDemucs recovery": folder / "recovery-vocals.flac", "MelBand-RoFormer recovery": folder / "roformer-vocals.flac"})
+                log(f"Adaptive background: rebuilt the bed under {replaced} recovered line(s)")
+            background_stem = adaptive_bed
         if any("source_performance" not in cue for cue in cues):
             update(34.8, "Measuring source rhythm, pitch, pauses, and position")
             # Measure the same per-cue source selected by the confidence gate.  The
@@ -1565,6 +1578,49 @@ def write_silence(path: Path, seconds: float, rate: int = 24_000) -> None:
     import soundfile as sf
     path.parent.mkdir(parents=True, exist_ok=True)
     sf.write(path, np.zeros(max(1, round(seconds * rate)), dtype=np.float32), rate, subtype="PCM_16")
+
+
+def build_adaptive_background(film_mix: Path, background: Path, cues: list[dict], output: Path,
+                              vocal_stems: dict[str, Path], fade_s: float = 0.035) -> int:
+    """Write ``output`` = ``background`` except over cues whose dialogue came from a recovery
+    stem, where the bed becomes film mix minus that stem (the cinematic separator left the
+    voice in its background there). Returns the number of cues replaced."""
+    import numpy as np
+    import soundfile as sf
+    bed, rate = sf.read(background, dtype="float32", always_2d=True)
+    mix, mix_rate = sf.read(film_mix, dtype="float32", always_2d=True)
+    if mix_rate != rate:
+        raise RuntimeError(f"Film mix rate {mix_rate} differs from the background stem rate {rate}")
+    if mix.shape[1] != bed.shape[1]:
+        mix = np.repeat(mix.mean(axis=1, keepdims=True), bed.shape[1], axis=1)
+    stems: dict[str, np.ndarray] = {}
+    replaced = 0
+    fade = max(1, int(fade_s * rate))
+    for cue in cues:
+        name = cue.get("dialogue_source", "Bandit cinematic")
+        stem_path = vocal_stems.get(name)
+        if name == "Bandit cinematic" or stem_path is None or not stem_path.is_file():
+            continue
+        if name not in stems:
+            vocal, vocal_rate = sf.read(stem_path, dtype="float32", always_2d=True)
+            if vocal_rate != rate:
+                raise RuntimeError(f"Vocal stem {stem_path.name} rate {vocal_rate} differs from {rate}")
+            if vocal.shape[1] != bed.shape[1]:
+                vocal = np.repeat(vocal.mean(axis=1, keepdims=True), bed.shape[1], axis=1)
+            stems[name] = vocal
+        vocal = stems[name]
+        a = max(0, int((float(cue["start"]) - fade_s) * rate)); b = min(len(bed), len(mix), len(vocal), int((float(cue["end"]) + fade_s) * rate))
+        if b - a < 2 * fade:
+            continue
+        patch = mix[a:b] - vocal[a:b]
+        ramp = np.linspace(0, 1, fade, dtype=np.float32)[:, None]
+        patch[:fade] = bed[a:a + fade] * (1 - ramp) + patch[:fade] * ramp
+        patch[-fade:] = bed[b - fade:b] * ramp + patch[-fade:] * (1 - ramp)
+        bed[a:b] = patch
+        replaced += 1
+        cue["background_source"] = f"film mix minus {name}"
+    sf.write(output, bed, rate, subtype="PCM_24")
+    return replaced
 
 
 def probe_stream_starts(path: Path) -> list[float]:

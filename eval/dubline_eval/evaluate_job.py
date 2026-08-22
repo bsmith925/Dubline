@@ -201,7 +201,8 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
     (work / "picture-offset.json").write_text(json.dumps(pic))
     mos_total = A.total(A.subtract(out_artic, dub_speech)) if out_mouth else None
     mixfid = (mix_fidelity(job_dir / "working-soundtrack-48k.flac", job_dir / "english-mix.flac", dub_speech, t_end,
-                           source_me=job_dir / "cinema-background.flac", source_dialogue=job_dir / "cinema-dialogue.flac")
+                           source_me=(job_dir / "cinema-background-adaptive.flac" if (job_dir / "cinema-background-adaptive.flac").is_file() else job_dir / "cinema-background.flac"),
+                           source_dialogue=job_dir / "cinema-dialogue.flac")
               if (job_dir / "english-mix.flac").is_file() else {})
     if (job_dir / "english-mix-premaster.flac").is_file() and (job_dir / "english-mix.flac").is_file():
         from .metrics.mix import mastering_effect

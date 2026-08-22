@@ -137,6 +137,9 @@ class Settings(BaseSettings):
     dub_level_match_max_db: float = 12.0
     # MIX-005: mix balance of the dub voice against the separated bed (stereo/mono path).
     dub_voice_gain_db: float = 0.0
+    # SEP-002: rebuild the bed as film mix minus the recovery vocal stem over cues the
+    # cinematic separator left out of its dialogue stem (voice otherwise plays under the dub).
+    dub_adaptive_background: bool = True
     dub_duck_ratio: float = 2.0
     # EXP-AUDIO-003: mute the whole span of a re-voiced utterance, not only its aligned words.
     dub_mute_whole_utterance: bool = True
