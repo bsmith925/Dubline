@@ -96,3 +96,13 @@ Two runs of identical production code (`20260821-022651` vs `20260821-140505`): 
 ## MIX-001 — "bed loss" on gb-es-roundtrip was not bed loss (metric fix)
 
 - Job from `20260822-050917`: separator put the whole source into the dialogue stem (dialogue stem −19.2 dB = source mix; background stem −94 dB — the YouTube auto-dub track has no bed). In dub-silent regions the source is at −20 dB (speaking) and the final at −63 dB: that is **source speech where our dub is silent** (short takes) being muted — a timing defect, not mixing. `mix_fidelity` now evaluates the bed only where the source dialogue stem is silent too and reports `source_speech_without_dub_s` separately.
+
+## MIX-002 / MIX-003 — bed +5…+8 dB in bed-only regions was the limiter squashing dialogue (offline A/B)
+
+- Characterization (core-v1 baseline-2 jobs 09585a7c849e charade-office, 376fae4dc925 thom-celia, da259f657617 gb): separation faithful (background stem = source bed within 0.2 dB); mix graph preserves the dialogue/bed ratio (premaster 17.1 vs source 17.6 dB); **mastering** applied +14.2 dB to the bed but only +11.3 dB to speech (web preset, one-pass loudnorm to −16 LUFS + limiter): speech peaks were limited ~3 dB, the quiet bed was not. Mastering mode dynamic vs linear made no difference (bed Δ 8.0 vs 7.5) — the limiter, not the gain rider.
+- New metric `master_dialogue_squash_db` = (final − premaster) in dub-speech regions minus the same elsewhere (premaster now kept). Baseline: −2.9 / +0.1 / −2.3 dB.
+- **Variable**: `DUB_MASTERING_MODE` dynamic → `peak_safe`: two-pass measurement, one static gain = min(gain to target, gain to the −1 dBTP ceiling + allowance). Allowance tried at 0, 1, 3 dB on the same three jobs (three values, same data — noted):
+  - 0 dB: squash 0.0 / −0.1 / −0.1, LUFS −18.7 / −22.9 / −20.1
+  - 1 dB: squash 0.0 / 0.05 / −0.14, LUFS −17.7 / −21.9 / −19.1
+  - 3 dB: squash −0.03 / +0.37 / −0.21, LUFS −16.0 / −19.9 / −17.2 (dynamic: −15.6 / −16.7 / −17.5)
+- **Decision**: keep `peak_safe` with 3 dB allowance (default). Cost: programmes with a loud bed land up to ~3 dB under the −16 LUFS web target; reported in the mastering record (`gain_limited_by_peak`, `expected_lufs`). To be confirmed on the next core-v0 run via `master_dialogue_squash_db`.

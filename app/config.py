@@ -129,7 +129,9 @@ class Settings(BaseSettings):
     lipsync_engine: Literal["musetalk", "latentsync"] = "latentsync"
     # Mastering for the web/broadcast presets: "dynamic" = one-pass loudnorm (current behaviour,
     # rides gain and lifts near-silence), "linear" = two-pass loudnorm with one static gain.
-    dub_mastering_mode: Literal["dynamic", "linear"] = "dynamic"
+    dub_mastering_mode: Literal["dynamic", "linear", "peak_safe"] = "peak_safe"
+    # peak_safe: how much the safety limiter may work on the loudest peaks (dB over the ceiling).
+    dub_master_limiter_allowance_db: float = 3.0
     # EXP-AUDIO-003: mute the whole span of a re-voiced utterance, not only its aligned words.
     dub_mute_whole_utterance: bool = True
     # EXP-VIDEO-003: feed LatentSync an exact fps=25 clip instead of letting it run `ffmpeg -r 25`

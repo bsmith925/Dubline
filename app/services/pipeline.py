@@ -1815,7 +1815,20 @@ def master_audio(premaster: Path, output: Path, dialogue: Path, preset: str) -> 
         target, lra = (-23.0, 18) if preset == "broadcast" else (-16.0, 11)
         result = {"preset": "EBU broadcast" if preset == "broadcast" else "web", "target_lufs": target, "true_peak_target_dbtp": -1.0,
                   "mastering_mode": settings.dub_mastering_mode}
-        if settings.dub_mastering_mode == "linear":
+        if settings.dub_mastering_mode == "peak_safe":
+            # MIX-003: one static gain, capped so the true-peak ceiling is met by GAIN rather than
+            # by the limiter. At -16 LUFS a dialogue-led programme needed ~+14 dB and speech
+            # peaks were limited by ~3 dB while the quieter bed passed untouched (dialogue/bed
+            # ratio 17.6 -> 14.2 dB). The programme may land below target; that is reported.
+            measured = loudnorm_measure(premaster, target, lra)
+            wanted = target - float(measured["input_i"])
+            peak_room = -1.0 - float(measured["input_tp"]) + settings.dub_master_limiter_allowance_db
+            gain = min(wanted, peak_room)
+            audio_filter = f"volume={gain:.3f}dB,alimiter=limit=0.891:level=0"
+            result.update({"loudnorm_measured": measured, "program_gain_db": round(gain, 3),
+                           "gain_limited_by_peak": gain < wanted - 0.05,
+                           "expected_lufs": round(float(measured["input_i"]) + gain, 2)})
+        elif settings.dub_mastering_mode == "linear":
             # Two-pass loudnorm: measure, then apply ONE static gain (linear=true). One-pass
             # loudnorm is a dynamic gain rider that lifts near-silence by tens of dB
             # (EXP-AUDIO-001: -45 dB stems surfacing at -30 dB in the delivered track).
@@ -1838,7 +1851,7 @@ def master_audio(premaster: Path, output: Path, dialogue: Path, preset: str) -> 
                   "program_gain_db": round(gain, 3), "true_peak_target_dbtp": -2.0}
     run("ffmpeg", "-y", "-v", "error", "-i", str(premaster), "-af", audio_filter,
         "-ar", "48000", "-c:a", "flac", "-sample_fmt", "s32", str(output))
-    premaster.unlink(missing_ok=True)
+    # The premaster is kept: the eval harness measures what mastering did to dialogue vs bed.
     return result
 
 

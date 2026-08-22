@@ -82,3 +82,20 @@ def mix_fidelity(source_mix: Path, final_mix: Path, dub_speech: list[list[float]
         result["dialogue_to_bed_snr_db"] = round(_db(o_l) - _db(o_q), 2)
     result["clipped_samples"] = int(np.sum(np.abs(out) >= 0.999))
     return result
+
+
+def mastering_effect(premaster: Path, final_mix: Path, dub_speech: list[list[float]], t_end: float, rate: int = 48000) -> dict:
+    """What mastering did to speech versus the rest: gain applied in dub-speech regions minus gain
+    applied elsewhere (negative = speech was limited/compressed harder than the bed)."""
+    pm = _mono(premaster, rate, t_end); out = _mono(final_mix, rate, t_end)
+    n = min(len(pm), len(out)); pm, out = pm[:n], out[:n]
+    guarded = [[max(0, a - .15), b + .15] for a, b in dub_speech]
+    rest = [iv for iv in A.subtract([[0.0, n / rate]], guarded) if iv[1] - iv[0] >= 0.5]
+    speech = [iv for iv in dub_speech if iv[1] - iv[0] >= 0.3]
+    if not speech or not rest:
+        return {}
+    gather = lambda x, ivs: np.concatenate([x[int(a * rate):int(b * rate)] for a, b in ivs])
+    g_speech = _db(gather(out, speech)) - _db(gather(pm, speech))
+    g_rest = _db(gather(out, rest)) - _db(gather(pm, rest))
+    return {"master_gain_speech_db": round(g_speech, 2), "master_gain_rest_db": round(g_rest, 2),
+            "master_dialogue_squash_db": round(g_speech - g_rest, 2)}

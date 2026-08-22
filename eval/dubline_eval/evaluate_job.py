@@ -203,6 +203,9 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
     mixfid = (mix_fidelity(job_dir / "working-soundtrack-48k.flac", job_dir / "english-mix.flac", dub_speech, t_end,
                            source_me=job_dir / "cinema-background.flac", source_dialogue=job_dir / "cinema-dialogue.flac")
               if (job_dir / "english-mix.flac").is_file() else {})
+    if (job_dir / "english-mix-premaster.flac").is_file() and (job_dir / "english-mix.flac").is_file():
+        from .metrics.mix import mastering_effect
+        mixfid.update(mastering_effect(job_dir / "english-mix-premaster.flac", job_dir / "english-mix.flac", dub_speech, t_end))
     # face boxes from the FAN series (inner-lip landmarks are not stored; approximate the face box from face height)
     boxes = {}
     for r in src_mouth:
