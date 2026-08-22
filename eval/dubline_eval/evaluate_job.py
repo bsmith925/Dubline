@@ -115,6 +115,8 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
         ls = lipsync.get(int(cue["id"]))
         lipsync_applied = bool(q.get("visual_lipsync"))
         lipsync_interval = [round(max(0.0, start - 0.12), 3), round(max(0.0, start - 0.12) + (ls["rendered"] or 0), 3)] if ls and ls.get("rendered") else None
+        if q.get("visual_lipsync_interval"):
+            lipsync_interval = [float(v) for v in q["visual_lipsync_interval"]]
         motion_on_silence = audio.total(audio.subtract(span_out_artic, span_dub_speech)) if lipsync_applied else None
         speech_on_static = audio.total(audio.subtract(audio.clip(span_dub_speech, start, end), span_out_artic)) if lipsync_applied and out_mouth else None
         coverage = (audio.total(audio.intersect(span_dub_speech, span_src_artic)) / audio.total(span_src_artic)

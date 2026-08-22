@@ -16,6 +16,17 @@ def _enabled() -> bool:
     return settings.musetalk_enabled
 
 
+def _voiced_extent(line: Path, thresh_db: float = -40.0, window: float = 0.02) -> tuple[float, float] | None:
+    """(first, last) second of audible speech in a take, or None if the take is silent."""
+    import numpy as np
+    import soundfile as sf
+    frames, rate = sf.read(line, dtype="float32", always_2d=True)
+    mono = frames.mean(axis=1); step = max(1, int(rate * window))
+    levels = [20 * np.log10(float(np.sqrt(np.mean(mono[i:i + step] ** 2)) + 1e-9)) for i in range(0, len(mono), step)]
+    loud = [i for i, level in enumerate(levels) if level > thresh_db]
+    return (loud[0] * window, (loud[-1] + 1) * window) if loud else None
+
+
 def _video_fps(path: Path) -> float | None:
     try:
         text = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=r_frame_rate",
@@ -116,8 +127,20 @@ def apply_selective_lipsync(source: Path, cues: list[dict], dialogue_dir: Path, 
     for position, (index, cue) in enumerate(candidates):
         checkpoint()
         padding = .12
+        line = dialogue_dir / f"{index + 1:06d}.wav"
         start = max(0.0, float(cue["start"]) - padding)
         end = float(cue["end"]) + padding
+        audio_offset = 0.0   # seconds of the take to drop before the clip starts
+        if settings.lipsync_extent == "voiced":
+            # EXP-VIDEO-004: animate the mouth only where the dub actually speaks. The take is
+            # padded to the slot (trailing silence p90 1.2 s) and half of all takes overrun the
+            # utterance, so the utterance span animates on silence and freezes mid-speech.
+            voiced = _voiced_extent(line)
+            if voiced:
+                first_voice, last_voice = voiced
+                start = max(0.0, float(cue["start"]) + first_voice - padding)
+                end = float(cue["start"]) + last_voice + padding
+                audio_offset = max(0.0, first_voice - padding)
         clip = work / f"cue-{index + 1:06d}-source.mp4"
         audio = work / f"cue-{index + 1:06d}-audio.wav"
         # Keep the first/last 120 ms silent so the regenerated mouth blends at shot boundaries.
@@ -129,10 +152,10 @@ def apply_selective_lipsync(source: Path, cues: list[dict], dialogue_dir: Path, 
                         "-t", f"{max(0.04, end - start):.3f}", "-an", "-c:v", "libx264", "-crf", "14",
                         "-pix_fmt", "yuv420p", "-video_track_timescale", "90000", str(clip)],
                        check=True)
-        line = dialogue_dir / f"{index + 1:06d}.wav"
         duration = max(.1, end - start)
+        delay_ms = round(max(0.0, float(cue["start"]) + audio_offset - start) * 1000)
         subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", str(line), "-filter_complex",
-                        f"adelay={round(padding * 1000)}:all=1,apad=whole_dur={duration:.3f}",
+                        f"atrim=start={audio_offset:.3f},asetpts=PTS-STARTPTS,adelay={delay_ms}:all=1,apad=whole_dur={duration:.3f}",
                         "-t", f"{duration:.3f}", "-ar", "16000", "-ac", "1", str(audio)], check=True)
         result_name = f"cue-{index + 1:06d}.mp4"
         config = work / f"cue-{index + 1:06d}.json"
@@ -179,6 +202,7 @@ def apply_selective_lipsync(source: Path, cues: list[dict], dialogue_dir: Path, 
         if ok and generated.is_file():
             completed.append((generated, start, end, index))
             cue.setdefault("qc", {})["visual_lipsync"] = label
+            cue["qc"]["visual_lipsync_interval"] = [round(start, 3), round(end, 3)]
         else:
             cue.setdefault("qc", {})["visual_lipsync_error"] = tail[-600:]
         progress((position + 1) / len(candidates), index)

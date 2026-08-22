@@ -135,6 +135,8 @@ class Settings(BaseSettings):
     # EXP-VIDEO-003: feed LatentSync an exact fps=25 clip instead of letting it run `ffmpeg -r 25`
     # (measured ~60 ms picture lag on 30 fps sources).
     lipsync_pre_resample_25: bool = True
+    # EXP-VIDEO-004: animate the mouth over the utterance span, or only where the take is voiced.
+    lipsync_extent: Literal["utterance", "voiced"] = "utterance"
     latentsync_repo: Path = Path("vendor/LatentSync")
     latentsync_runtime: Path = Path("vendor/latentsync-env")
 

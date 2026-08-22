@@ -68,3 +68,14 @@ Two runs of identical production code (`20260821-022651` vs `20260821-140505`): 
 - **Conclusion**: the blurred mouth is LatentSync's own render (≈0.62–0.65 of source sharpness before any resample). Blend costs ≤0.05 more; hold recovers ≈0.05 at the price of 17–24 % duplicated frames (visible judder) and no sync gain. **Decision: no change** (keep blend). Sharpness has to come from the renderer (resolution/face-restoration track), not from the resample.
 - **Result** (core-v0 run `20260822-021438`, job ea80075555bb vs exp-4 job 4bf7a9d62b26, sequential background-alignment probe every 0.5 s): offset inside clips **−2…−3 frames → 0…−1 frame** (≤ 33 ms, the 30→25→30 quantization); co-timed bg MAD now equals best-offset MAD (1.26 / 1.26 vs 1.28 / 21.0 before at motion instants). Suite metrics flat within noise (LSE-C mean 5.19 → 5.08, n = 6; sharpness 0.743/0.959 → 0.758/0.935). Cue 1's first ~2.5 s still matches no source frame — separate defect (EXP-VIDEO-004 candidate).
 - **Decision**: keep (default on). Note: first harness `render_lag_ms` used frame-index seeks and reported garbage (+267/−167 ms) on MKV; rewritten to sequential reads.
+
+## EXP-AUDIO-004 — take extent vs utterance extent (characterization, no change)
+
+- core-v1 re-collected baseline, 108 takes: take runs past the utterance end p50 0.34 s / p90 1.3 s / max 4.7 s (96 % > 0.1 s). Split: **trailing silence inside the take** p50 0.23 / p90 1.19 / max 6.4 s (fitting pads every take to the slot, `audio_fit.py:92-127`), and **voiced overrun** p50 0.11 / p90 0.95 / max 4.6 s (50 % of takes > 0.1 s; charade-hotel-banter cue 13: 10.4 s utterance, 15.1 s of speech).
+- Trimming the trailing silence alone changes nothing audible; the voiced overrun is the translation-length problem (timing track). What is *visible* is that lip-sync animates over the utterance span regardless of where the take speaks → mouth on silence (tail padding) and frozen mouth under speech (overrun). → EXP-VIDEO-004.
+
+## EXP-VIDEO-004 — lip-sync extent = voiced extent of the take (±120 ms)
+
+- **Variable**: `LIPSYNC_EXTENT` utterance → voiced. The rendered clip starts 120 ms before the take's first audible speech and ends 120 ms after its last; audio for the renderer is the same take trimmed to match. Nothing else changes.
+- **Metrics**: `mouth_motion_on_silence_s` and `speech_on_static_mouth_s` (expected to drop on every lip-synced cue), lip-sync count/boundary jumps (expected unchanged in count, positions move), `render_lag_ms` (must stay ≤ 33 ms), LSE-C.
+- Harness: the pipeline now records `qc.visual_lipsync_interval`; the harness prefers it over the `start − 0.12 + rendered length` assumption.
