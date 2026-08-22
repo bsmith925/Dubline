@@ -152,28 +152,36 @@ def render_lag_ms(source: Path, output: Path, interval: list[float], samples: in
 
     Alignment uses the frame border (outside the central face area), which lip-sync does
     not touch, so this is a pure timing measurement: median over ``samples`` instants of
-    (best-matching source time − output time). Negative = output shows older content.
+    (best-matching source frame − output frame) in ms. Negative = output shows older
+    content. Frames are read sequentially (seeking by frame index is unreliable on MKV).
     """
     a, b = interval
     cs, co = cv2.VideoCapture(str(source)), cv2.VideoCapture(str(output))
     fps = cs.get(cv2.CAP_PROP_FPS) or 30.0
     mask = np.ones((270, 480), bool); mask[27:216, 144:336] = False
-    def grab(cap, i):
-        cap.set(cv2.CAP_PROP_POS_FRAMES, max(0, i)); ok, f = cap.read()
-        return cv2.cvtColor(cv2.resize(f, (480, 270)), cv2.COLOR_BGR2GRAY).astype(np.float32) if ok else None
+    targets = sorted({int(round(t * fps)) for t in np.linspace(a + 0.3, b - 0.3, samples)})
+    if not targets:
+        return {"render_lag_ms": None, "samples": 0}
+    lo, hi = targets[0] - search_frames, targets[-1] + search_frames
+    def read(cap):
+        got = {}; i = 0
+        while i <= hi:
+            ok, f = cap.read()
+            if not ok:
+                break
+            if i >= lo:
+                got[i] = cv2.cvtColor(cv2.resize(f, (480, 270)), cv2.COLOR_BGR2GRAY).astype(np.float32)[mask]
+            i += 1
+        cap.release(); return got
+    src, out = read(cs), read(co)
     lags = []
-    for t in np.linspace(a + 0.3, b - 0.3, samples):
-        i = int(round(t * fps)); fo = grab(co, i)
-        if fo is None:
+    for i in targets:
+        if i not in out:
             continue
-        cands = []
-        for j in range(i - search_frames, i + search_frames + 1):
-            fs = grab(cs, j)
-            if fs is not None:
-                cands.append((float(np.mean(np.abs(fo[mask] - fs[mask]))), j - i))
-        if cands:
-            best = min(cands); same = next((c for c in cands if c[1] == 0), best)
-            if same[0] - best[0] > 0.3:      # only count instants where alignment is unambiguous
-                lags.append(best[1] * 1000.0 / fps)
-    cs.release(); co.release()
+        cands = [(float(np.mean(np.abs(out[i] - src[j]))), j - i) for j in range(i - search_frames, i + search_frames + 1) if j in src]
+        if not cands:
+            continue
+        best = min(cands); same = next((c for c in cands if c[1] == 0), best)
+        if same[0] - best[0] > 0.3 or best[1] == 0:   # count unambiguous instants and exact matches
+            lags.append(best[1] * 1000.0 / fps)
     return {"render_lag_ms": round(float(np.median(lags)), 1) if lags else None, "samples": len(lags)}
