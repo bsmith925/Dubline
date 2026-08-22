@@ -80,6 +80,13 @@ def mix_fidelity(source_mix: Path, final_mix: Path, dub_speech: list[list[float]
     if loud:
         o_l = np.concatenate([out[int(a * rate):int(b * rate)] for a, b in loud])
         result["dialogue_to_bed_snr_db"] = round(_db(o_l) - _db(o_q), 2)
+        # Programme-gain-independent bed check: output (dialogue − bed) minus source (dialogue − bed).
+        # Positive = the bed is relatively quieter than in the source; negative = relatively louder.
+        if source_dialogue is not None and source_dialogue.is_file():
+            src_sp = [iv for iv in A.speech_intervals(source_dialogue, thresh_db=-40, t_max=t_end) if iv[1] - iv[0] >= 0.3]
+            if src_sp:
+                s_l = np.concatenate([src[int(a * rate):int(b * rate)] for a, b in src_sp])
+                result["bed_ratio_delta_db"] = round((_db(o_l) - _db(o_q)) - (_db(s_l) - _db(s_q)), 2)
     result["clipped_samples"] = int(np.sum(np.abs(out) >= 0.999))
     return result
 

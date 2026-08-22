@@ -113,3 +113,4 @@ Two runs of identical production code (`20260821-022651` vs `20260821-140505`): 
 - Judge noise floor for reference: identical core-v0 baselines both had 6 cues < 0.7 (third run 7).
 - **Variable**: `TRANSLATION_PER_LINE` false → true: one line per call with the full scene as context. Suite `trans-001` = core-v0 + tos-lab-multispeaker-es.
 - **Metrics**: cues with adequacy == 0 (misattribution), cues < 0.7, translation-QC failures, word_similarity, wall time (cost). Expected: misattributions → 0, adequacy ≥ baseline; cost ≈ +N LLM calls of a 7B model.
+- **core-v0 reference-2** (`20260822-105241`): confirms ENG-001 (default audio tracks 2 → 1) and MIX-003 (`master_dialogue_squash_db` −0.3 / −0.24) in a full run. `bed_rms_delta_db` on gb-fr reads +9.7 dB: that is the uniform programme gain (+19 dB on a −32 dB source) lifting room tone, not bed damage; added `bed_ratio_delta_db` (dialogue−bed ratio, output minus source) as the gain-independent check.
