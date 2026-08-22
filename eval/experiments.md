@@ -114,3 +114,9 @@ Two runs of identical production code (`20260821-022651` vs `20260821-140505`): 
 - **Variable**: `TRANSLATION_PER_LINE` false → true: one line per call with the full scene as context. Suite `trans-001` = core-v0 + tos-lab-multispeaker-es.
 - **Metrics**: cues with adequacy == 0 (misattribution), cues < 0.7, translation-QC failures, word_similarity, wall time (cost). Expected: misattributions → 0, adequacy ≥ baseline; cost ≈ +N LLM calls of a 7B model.
 - **core-v0 reference-2** (`20260822-105241`): confirms ENG-001 (default audio tracks 2 → 1) and MIX-003 (`master_dialogue_squash_db` −0.3 / −0.24) in a full run. `bed_rms_delta_db` on gb-fr reads +9.7 dB: that is the uniform programme gain (+19 dB on a −32 dB source) lifting room tone, not bed damage; added `bed_ratio_delta_db` (dialogue−bed ratio, output minus source) as the gain-independent check.
+
+## EXP-TIMING-001 — choose the phrasing by MEASURED duration (result)
+
+- `20260822-113541-core-v0` vs reference-2 `105241`. 8 poorly fitting takes (5 FR, 3 ES) had 4–6 candidates voiced and measured; all 8 switched. gb-fr active-fill p10/p50/p90 **37/62/85 → 57/77/90 %**, cues under 60 % fill 4 → 2 (ES 0 → 0); padding p90 6468 → 3704 ms; mouth-on-silence total FR 10.3 → 12.8 s (n.b. counts source mouth outside lip-synced cues; noisy), LSE-C 4.31 → 4.73; judge adequacy mean 0.72 → 0.69 (within noise; candidates are adequacy-gated ≥ 0.65); wall +22 % FR / +8 % ES.
+- Flagged but not caused by the variable: word_similarity 0.43 on FR cue 7 (not switched) is "quinze à vingt-cinq" vs back-transcribed "15 à 25" — metric needs number normalization; stretch 9.6 % on the same off-screen cue is run variance.
+- **Decision: keep** (`DUB_SELECT_BY_MEASURED_DURATION=true`). Next on this track: extend candidate measurement to all takes (not only < 75 % fill) once cost is acceptable, and feed measured rates back into the adapter's word target.
