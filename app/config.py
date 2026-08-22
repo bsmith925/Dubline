@@ -142,7 +142,7 @@ class Settings(BaseSettings):
     # EXP-TIMING-001: for poorly fitting takes, voice the adapter's candidates and pick by MEASURED duration.
     dub_select_by_measured_duration: bool = True
     # EXP-TRANS-001: translate one line per call (scene as context) instead of a 12-line batch.
-    translation_per_line: bool = False
+    translation_per_line: bool = True
     latentsync_repo: Path = Path("vendor/LatentSync")
     latentsync_runtime: Path = Path("vendor/latentsync-env")
 
