@@ -173,3 +173,9 @@ Top-5 failure modes after baseline-3 (by tails):
 3. **Translation length vs slot**: padding max 9.6 s, fill p10 still low on talking-head content; voiced overrun on half the takes. → timing track (candidate measurement on all takes; adapter word target from measured rates).
 4. **Renderer sharpness**: mouth sharpness 0.38 (thom-celia), 0.60 (tos-lab) → lip-generation track; face crop may help small faces.
 5. **Speaker similarity tail**: min 0.22, p10 ≈ 0.45 (x-vector cross-lingual) → voice track (ICL vs x-vector per language; reference selection).
+
+## EXP-TIMING-002 — adapter duration model from measured per-language speaking rates
+
+- Measured on baseline-3 raw takes (words per voiced second, p50): fr 3.69 (p25–75 3.1–4.1), es 3.54 (2.8–4.8), en 2.63. The adapter used 2.65 for every language, over-predicting French durations by ~40 % and asking for too few words.
+- **Variable**: `ADAPTER_LANGUAGE_RATES` false → true (fr 3.7 / es 3.5 / en 2.65 in `predicted_seconds` and the word target in the prompt). Nothing else changes; TIMING-001 still measures candidates for poorly fitting takes.
+- **Metrics**: active-fill p10/p50, padding p90, number of takes sent to candidate measurement (expected to fall → wall time), stretch p90 (must not rise above limits), judge adequacy.

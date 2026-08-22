@@ -13,9 +13,21 @@ from app.config import settings
 from app.services.llm_json import StructuredOutputError, array_of, ask_json, number
 
 
+# Words per VOICED second of our TTS engines, measured on core-v1 baseline-3 (p50 over
+# 52 fr / 30 es / 10 en takes). The old universal 2.65 over-predicted French by ~40 %.
+MEASURED_RATES = {"fr": 3.7, "es": 3.5, "en": 2.65}
+
+
+def speaking_rate() -> float:
+    if not settings.adapter_language_rates:
+        return 2.65
+    from app.services.languages import iso2
+    return MEASURED_RATES.get(iso2(TARGET)[:2], 3.0)
+
+
 def predicted_seconds(text: str) -> float:
     words = len(re.findall(r"[\w']+", text))
-    return max(0.35, words / 2.65 + text.count(",") * 0.08 + text.count(".") * 0.1)
+    return max(0.35, words / speaking_rate() + text.count(",") * 0.08 + text.count(".") * 0.1)
 
 
 def hard_line(cue: dict) -> bool:
@@ -230,7 +242,7 @@ def adaptation_pass(llm, cues: list[dict], output: Path) -> None:
         prompt = f"""Adapt one already-translated film line for dubbing. Do not translate it again.
 Produce six distinct versions: natural, shorter, lip_compatible, rhythmic, literal_short, idiomatic_short.
 All values must be idiomatic {TARGET}, never transliteration. Preserve meaning, names, facts and register.
-{urgency}Target spoken duration: {target:.2f} seconds, roughly {max(1, round(target * 2.65))} words.
+{urgency}Target spoken duration: {target:.2f} seconds, roughly {max(1, round(target * speaking_rate()))} words.
 Mouth clearly visible: {bool(cue.get('mouth_visible'))}. Match vowel/syllable rhythm more closely when true.
 Faithful {TARGET} translation: {faithful}
 Scene context:

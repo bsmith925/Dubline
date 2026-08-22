@@ -154,6 +154,8 @@ class Settings(BaseSettings):
     dub_select_by_measured_duration: bool = True
     # EXP-TRANS-001: translate one line per call (scene as context) instead of a 12-line batch.
     translation_per_line: bool = True
+    # EXP-TIMING-002: adapter duration model uses measured per-language TTS speaking rates.
+    adapter_language_rates: bool = False
     latentsync_repo: Path = Path("vendor/LatentSync")
     latentsync_runtime: Path = Path("vendor/latentsync-env")
 
