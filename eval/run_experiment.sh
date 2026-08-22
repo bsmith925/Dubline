@@ -11,5 +11,12 @@ for kv in "$@"; do
     if grep -q "^${key}=" .env; then sed -i "s|^${key}=.*|${kv}|" .env; else echo "$kv" >> .env; fi
 done
 systemctl --user restart dubline; sleep 5
-trap 'cp .env.experiment-backup .env; systemctl --user restart dubline' EXIT
+cancel_jobs() {
+    # Cancel queued/processing jobs so a killed run cannot leave orphans ahead of the next one.
+    curl -s http://127.0.0.1:8000/api/jobs | python3 -c 'import json,sys
+for j in json.load(sys.stdin):
+    if j.get("status") in ("queued","processing"): print(j["id"])' | while read -r id; do
+        curl -s -X POST "http://127.0.0.1:8000/api/jobs/$id/control/cancel" >/dev/null; done
+}
+trap 'cancel_jobs; cp .env.experiment-backup .env; systemctl --user restart dubline' EXIT
 vendor/index-tts/.venv/bin/python -m eval.dubline_eval.cli run --suite "$SUITE" --notes "$NOTES"
