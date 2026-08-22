@@ -146,6 +146,27 @@ def faithful_pass(llm, cues: list[dict]) -> None:
         if not untranslated:
             continue
         numbered = "\n".join(f"{index}: {cues[index].get('source', '')}" for index in batch)
+        if settings.translation_per_line:
+            # EXP-TRANS-001: one line per call, scene as context. Batched output occasionally
+            # labels translations with the wrong line number (content shifted by one after
+            # short fragments), which an id-based schema cannot detect.
+            for index in untranslated:
+                single = ask_json(
+                    llm, f"""Translate ONE line of this film scene faithfully into idiomatic {TARGET}.
+Maintain names, terminology, facts, register, jokes, relationships and continuity with the scene.
+Do not shorten for timing and never romanize instead of translating. Translate only line {index}; never merge neighbouring lines into it.
+Scene:
+{numbered}
+Line {index} to translate: {cues[index].get('source', '')}""",
+                    {"type": "object", "properties": {"translation": {"type": "string"}}, "required": ["translation"]},
+                    max_tokens=240, **SAMPLING)
+                translated = " ".join(str(single.get("translation") or "").strip().strip('"').split())
+                cues[index]["faithful_translation"] = translated
+                cues[index]["literal_translation"] = translated
+                cues[index]["english"] = translated
+                cues[index]["translation_is_target"] = True
+                cues[index]["translation_model"] = "Hy-MT2-7B Q4 · per-line scene-context pass"
+            continue
         wanted = ", ".join(str(index) for index in untranslated)
         prompt = f"""Translate this complete film scene faithfully into idiomatic {TARGET}.
 Maintain names, terminology, facts, register, jokes, relationships and continuity across lines.

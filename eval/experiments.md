@@ -106,3 +106,10 @@ Two runs of identical production code (`20260821-022651` vs `20260821-140505`): 
   - 1 dB: squash 0.0 / 0.05 / −0.14, LUFS −17.7 / −21.9 / −19.1
   - 3 dB: squash −0.03 / +0.37 / −0.21, LUFS −16.0 / −19.9 / −17.2 (dynamic: −15.6 / −16.7 / −17.5)
 - **Decision**: keep `peak_safe` with 3 dB allowance (default). Cost: programmes with a loud bed land up to ~3 dB under the −16 LUFS web target; reported in the mastering record (`gain_limited_by_peak`, `expected_lufs`). To be confirmed on the next core-v0 run via `master_dialogue_squash_db`.
+
+## EXP-TRANS-001 — translations assigned to the wrong cue (batch output misattribution)
+
+- core-v1 baseline-2 (`20260822-094315`): cues with judge adequacy 0.0 went 2 → 9; on tos-lab-multispeaker cues 8–11 each carry the NEXT cue's translation (cue 9 "Why does she do this" → "Ya probamos esa opción", cue 10's line) and cues 2–3 the previous one. The shift is already present in `literal_translation`: the scene-batch translation (12 numbered lines, id-labelled JSON array) returned content labelled with the wrong line numbers. The id-based schema cannot detect this.
+- Judge noise floor for reference: identical core-v0 baselines both had 6 cues < 0.7 (third run 7).
+- **Variable**: `TRANSLATION_PER_LINE` false → true: one line per call with the full scene as context. Suite `trans-001` = core-v0 + tos-lab-multispeaker-es.
+- **Metrics**: cues with adequacy == 0 (misattribution), cues < 0.7, translation-QC failures, word_similarity, wall time (cost). Expected: misattributions → 0, adequacy ≥ baseline; cost ≈ +N LLM calls of a 7B model.

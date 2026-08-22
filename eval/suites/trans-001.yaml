@@ -1,0 +1,43 @@
+name: trans-001
+clips:
+- id: gb-en-fr-0090
+  path: /mnt/media/dubline/sources/gingerbill-cleancode.en.1080p.mkv
+  start: 0
+  end: 90
+  source_language: auto
+  target_language: French
+  tags:
+  - talking-head
+  - beard
+  - pip-after-32s
+  - second-face-in-screenshare
+  - rapid-speech
+  - hesitations
+  fingerprint: sha256:TBD
+  notes: English original; screen-share with PiP from ~32 s.
+- id: gb-es-en-0090
+  path: /mnt/media/dubline/sources/gingerbill-cleancode.es.mkv
+  start: 0
+  end: 90
+  source_language: Spanish
+  target_language: English
+  tags:
+  - talking-head
+  - beard
+  - synthetic-source-voice
+  - reference-transcript
+  fingerprint: sha256:TBD
+  notes: YouTube auto-dub Spanish track; English original transcript is ground truth.
+- id: tos-lab-multispeaker-es
+  path: /mnt/media/dubline/sources/corpus/tears_of_steel_720p.mov
+  fingerprint: sha256:efa9062d9cdb7a33
+  start: 328
+  end: 392
+  source_language: English
+  target_language: Spanish
+  tags:
+  - multi-speaker
+  - overlap
+  - many-cuts
+  - off-screen-speech
+  - short-interjections
