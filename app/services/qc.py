@@ -60,9 +60,10 @@ def backtranscribe_lines(cues: list[dict], fitted_dir: Path, folder: Path,
     if code != 0 or not output.is_file():
         raise RuntimeError("Back-transcription QC worker failed: " + "\n".join(tail[-10:]))
     results = json.loads(output.read_text(encoding="utf-8"))
+    lang = (language_code or "en")[:2].lower()
     for cue, result in zip(cues, results):
-        intended = normalize_words(cue.get("spoken_text") or cue.get("english", ""))
-        heard = normalize_words(result["text"])
+        intended = normalize_words(cue.get("spoken_text") or cue.get("english", ""), lang)
+        heard = normalize_words(result["text"], lang)
         similarity = __import__('difflib').SequenceMatcher(None, intended, heard).ratio()
         intended_words = intended.split(); heard_words = heard.split()
         wer = edit_distance(intended_words, heard_words) / max(1, len(intended_words))
@@ -80,13 +81,59 @@ def backtranscribe_lines(cues: list[dict], fitted_dir: Path, folder: Path,
                                           "asr_confidence": result["confidence"]})
 
 
-def normalize_words(value: str) -> str:
-    value = value.lower()
-    numbers = {"0": "zero", "1": "one", "2": "two", "3": "three", "4": "four",
-               "5": "five", "6": "six", "7": "seven", "8": "eight", "9": "nine"}
-    for digit, word in numbers.items():
-        value = value.replace(digit, f" {word} ")
-    return " ".join(__import__('re').findall(r"[a-z']+", value))
+_UNITS = {
+    "en": ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve",
+           "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"],
+    "fr": ["zéro", "un", "deux", "trois", "quatre", "cinq", "six", "sept", "huit", "neuf", "dix", "onze", "douze",
+           "treize", "quatorze", "quinze", "seize", "dix-sept", "dix-huit", "dix-neuf"],
+    "es": ["cero", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve", "diez", "once", "doce",
+           "trece", "catorce", "quince", "dieciséis", "diecisiete", "dieciocho", "diecinueve"],
+}
+_TENS = {
+    "en": ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"],
+    "fr": ["", "", "vingt", "trente", "quarante", "cinquante", "soixante", "soixante-dix", "quatre-vingts", "quatre-vingt-dix"],
+    "es": ["", "", "veinte", "treinta", "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa"],
+}
+
+
+def spell_number(n: int, lang: str) -> str:
+    """Spell 0-999999 the way a speaker would say it (en/fr/es), for back-transcription comparison."""
+    lang = lang if lang in _UNITS else "en"
+    units, tens = _UNITS[lang], _TENS[lang]
+    if n < 20:
+        return units[n]
+    if n < 100:
+        t, u = divmod(n, 10)
+        if lang == "fr":
+            if t in (7, 9):
+                return ("soixante" if t == 7 else "quatre-vingt") + ("-" + units[10 + u] if (t == 7 or u) else "-dix")
+            if t == 8:
+                return "quatre-vingts" if u == 0 else f"quatre-vingt-{units[u]}"
+            return tens[t] if u == 0 else (f"{tens[t]}-et-un" if u == 1 else f"{tens[t]}-{units[u]}")
+        if lang == "es":
+            if t == 2:
+                return "veinte" if u == 0 else f"veinti{units[u]}"
+            return tens[t] if u == 0 else f"{tens[t]} y {units[u]}"
+        return tens[t] if u == 0 else f"{tens[t]}-{units[u]}"
+    if n < 1000:
+        h, r = divmod(n, 100)
+        hundred = {"en": ("one hundred" if h == 1 else f"{units[h]} hundred"),
+                   "fr": ("cent" if h == 1 else f"{units[h]} cent" + ("s" if r == 0 else "")),
+                   "es": ("cien" if (h == 1 and r == 0) else ("ciento" if h == 1 else f"{units[h]}cientos"))}[lang]
+        return hundred if r == 0 else f"{hundred} {spell_number(r, lang)}"
+    k, r = divmod(n, 1000)
+    thousand = {"en": ("one thousand" if k == 1 else f"{spell_number(k, lang)} thousand"),
+                "fr": ("mille" if k == 1 else f"{spell_number(k, lang)} mille"),
+                "es": ("mil" if k == 1 else f"{spell_number(k, lang)} mil")}[lang]
+    return thousand if r == 0 else f"{thousand} {spell_number(r, lang)}"
+
+
+def normalize_words(value: str, lang: str = "en") -> str:
+    """Lower-case, spell digits in the target language, keep accented letters as letters."""
+    import re
+    value = value.lower().replace("%", " pour cent " if lang == "fr" else (" por ciento " if lang == "es" else " percent "))
+    value = re.sub(r"\d+", lambda m: " " + spell_number(min(int(m.group()), 999_999), lang) + " ", value)
+    return " ".join(re.findall(r"[^\W\d_]+(?:['’-][^\W\d_]+)*", value, flags=re.UNICODE)).replace("’", "'")
 
 
 def edit_distance(left: list, right: list) -> int:

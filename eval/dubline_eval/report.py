@@ -88,6 +88,9 @@ def write_summary(bundle: Path) -> None:
                      f"{c.get('mouth_motion_on_silence_total_s')} | {c.get('picture_offset_outside_lipsync_frames')}/{c.get('picture_offset_inside_lipsync_frames')} | {c.get('boundary_jump_max_x_median')} | {c.get('mouth_sharpness_ratio')} | "
                      f"{(c.get('mix_fidelity') or {}).get('bed_rms_delta_db')} | {(c.get('mix_fidelity') or {}).get('bed_missing_fraction')} | {(c.get('mix_fidelity') or {}).get('source_speech_without_dub_s')} | {(c.get('mix_fidelity') or {}).get('master_dialogue_squash_db')} | "
                      f"{(c.get('video_fidelity') or {}).get('psnr_outside_edit_inside_lipsync')} | {(c.get('video_fidelity') or {}).get('psnr_unedited_frames')} |")
+    zero = [(r["identity"]["clip_id"], r["identity"]["utterance_id"]) for r in utts if r.get("translation", {}).get("judge_adequacy") == 0.0]
+    low = sum(1 for r in utts if (r.get("translation", {}).get("judge_adequacy") is not None) and r["translation"]["judge_adequacy"] < 0.7)
+    lines += ["", f"Translation: {len(zero)} utterance(s) with judge adequacy 0.0 (misattributed/untranslated): {zero[:12]}; {low} below 0.7"]
     lines += ["", "## Utterance metrics (raw distributions)", "", "| metric | n | mean | median | p90 | max | min |", "|---|---|---|---|---|---|---|"]
     for name, s in summary.items():
         lines.append(f"| {name} | {s['n']} | {s['mean']} | {s['median']} | {s['p90']} | {s['max']} | {s['min']} |")
