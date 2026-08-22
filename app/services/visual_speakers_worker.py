@@ -267,6 +267,9 @@ def main() -> None:
             "mouth_visible": bool(confidence >= .56 and best[2] >= .55 and best[4] >= .0012),
             "face_area_ratio": round(best[4], 5),
             "active_face_box": box if confidence >= .56 else None,
+            "confidence_terms": {"motion": round(min(1.0, best[0] / .035), 3), "margin": round(min(1.0, margin / .012), 3),
+                                 "visible": round(min(1.0, best[2] / .55), 3), "single_face_ratio": round(single_face_ratio, 3),
+                                 "second_score": round(second, 5), "best_score": round(best[0], 5)},
         })
     args.output.write_text(json.dumps(output, ensure_ascii=False, indent=2), encoding="utf-8")
     if args.registry_output:
