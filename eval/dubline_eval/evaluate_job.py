@@ -61,6 +61,19 @@ def _untranslated_rate(source: str, target: str, target_language: str) -> float 
     return round(len(leftovers) / len(tgt), 4)
 
 
+def _crop_articulation(job_dir: Path, box: list, start: float, end: float, runtimes: dict, fps: float, work: Path, cue_id: int):
+    x, y, side = [int(v) for v in box]
+    out = []
+    for name, video in (("output", job_dir / "dubbed-english.mkv"), ("source", job_dir / "selected-source.mkv")):
+        clip = work / f"crop-{name}-{cue_id:03d}.mp4"
+        if not clip.is_file():
+            subprocess.run(["ffmpeg", "-y", "-v", "error", "-accurate_seek", "-ss", f"{start:.3f}", "-i", str(video), "-t", f"{end - start:.3f}",
+                            "-an", "-vf", f"crop={side}:{side}:{x}:{y}", "-c:v", "libx264", "-crf", "18", str(clip)], check=True, capture_output=True)
+        series = mouth_series(clip, runtimes["musetalk"], end - start, fps, work / f"crop-{name}-{cue_id:03d}-mouth.json")
+        out.append([[a + start, b + start] for a, b in articulation_intervals(series)])
+    return out[0], out[1]
+
+
 def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
              t_max: float | None = None, mouth_fps: float = 15.0, job: dict | None = None,
              original: Path | None = None, clip_start: float = 0.0) -> tuple[list[UtteranceRecord], ClipRecord, dict]:
@@ -113,6 +126,11 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
         span_src_artic = audio.clip(src_artic, start, end)
         span_dub_speech = audio.clip(dub_speech, start, end + 5.0)
         span_out_artic = audio.clip(out_artic, start, end)
+        crop_box = q.get("visual_lipsync_crop")
+        if crop_box and q.get("visual_lipsync") and end - start >= 0.5:
+            # The whole-frame mouth tracker misses small / secondary faces: track the crop the
+            # renderer used, on both output and source, for this cue.
+            span_out_artic, span_src_artic = _crop_articulation(job_dir, crop_box, start, end, runtimes, mouth_fps, work, int(cue["id"]))
         ls = lipsync.get(int(cue["id"]))
         lipsync_applied = bool(q.get("visual_lipsync"))
         lipsync_interval = [round(max(0.0, start - 0.12), 3), round(max(0.0, start - 0.12) + (ls["rendered"] or 0), 3)] if ls and ls.get("rendered") else None
@@ -126,7 +144,6 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
         resid = (E.source_residual_under_take(job_dir / "english-dialogue.flac", matched_take, start)
                  if matched_take.is_file() and (job_dir / "english-dialogue.flac").is_file() and not cue.get("nonverbal_filler") else {})
         sync = {}
-        crop_box = q.get("visual_lipsync_crop")
         # Score A/V sync on every lip-synced cue (on its crop when one was used, so SyncNet sees
         # the active face) plus single-face cues that were not lip-synced (reference).
         if runtimes.get("syncnet_repo") and end - start >= 1.0 and (
