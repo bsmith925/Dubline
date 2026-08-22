@@ -92,3 +92,7 @@ Two runs of identical production code (`20260821-022651` vs `20260821-140505`): 
 ## ENG-001 — exactly one default audio track (verified offline)
 
 - Delivered MKVs carried two default audio tracks (dub + original) on every clip (`default_audio_streams` = 2). Remux now clears the default flag on original audio tracks (all other disposition flags kept); delivery QC compares original audio streams without the default flag. Verified by re-running the remux on job from `20260822-050917`: streams → (video default), (flac fra default=1), (aac default=0); media QC failures: none. Will read 1 in the next bundles.
+
+## MIX-001 — "bed loss" on gb-es-roundtrip was not bed loss (metric fix)
+
+- Job from `20260822-050917`: separator put the whole source into the dialogue stem (dialogue stem −19.2 dB = source mix; background stem −94 dB — the YouTube auto-dub track has no bed). In dub-silent regions the source is at −20 dB (speaking) and the final at −63 dB: that is **source speech where our dub is silent** (short takes) being muted — a timing defect, not mixing. `mix_fidelity` now evaluates the bed only where the source dialogue stem is silent too and reports `source_speech_without_dub_s` separately.

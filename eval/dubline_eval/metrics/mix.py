@@ -38,15 +38,22 @@ def _band_spectrum(x: np.ndarray, rate: int, bands: int = 24) -> np.ndarray:
 
 
 def mix_fidelity(source_mix: Path, final_mix: Path, dub_speech: list[list[float]], t_end: float,
-                 source_me: Path | None = None, rate: int = 48000) -> dict:
+                 source_me: Path | None = None, rate: int = 48000, source_dialogue: Path | None = None) -> dict:
     src = _mono(source_mix, rate, t_end); out = _mono(final_mix, rate, t_end)
     n = min(len(src), len(out)); src, out = src[:n], out[:n]
     total = [[0.0, n / rate]]
     # regions where the dub is silent (with 150 ms guard), i.e. the bed alone is audible in the output
     guarded = [[max(0, a - .15), b + .15] for a, b in dub_speech]
     quiet = [iv for iv in A.subtract(total, guarded) if iv[1] - iv[0] >= 0.5]
+    # ... and where the SOURCE was not speaking either: source speech under a silent dub is a
+    # timing/placement defect (reported separately), not a bed problem.
+    source_speech_no_dub = 0.0
+    if source_dialogue is not None and source_dialogue.is_file():
+        src_speech = [[max(0, a - .1), b + .1] for a, b in A.speech_intervals(source_dialogue, thresh_db=-40, t_max=t_end)]
+        source_speech_no_dub = A.total(A.intersect(quiet, src_speech))
+        quiet = [iv for iv in A.subtract(quiet, src_speech) if iv[1] - iv[0] >= 0.5]
     if not quiet:
-        return {"seconds_evaluated": 0.0}
+        return {"seconds_evaluated": 0.0, "source_speech_without_dub_s": round(source_speech_no_dub, 2)}
     def gather(x):
         return np.concatenate([x[int(a * rate):int(b * rate)] for a, b in quiet])
     s_q, o_q = gather(src), gather(out)
@@ -60,7 +67,7 @@ def mix_fidelity(source_mix: Path, final_mix: Path, dub_speech: list[list[float]
             windows += 1
             if _db(ws) > -50 and _db(wo) < _db(ws) - 12:
                 missing += 1
-    result = {"seconds_evaluated": round(sum(b - a for a, b in quiet), 2),
+    result = {"seconds_evaluated": round(sum(b - a for a, b in quiet), 2), "source_speech_without_dub_s": round(source_speech_no_dub, 2),
               "bed_rms_delta_db": round(rms_delta, 2), "bed_spectral_distance_db": round(spectral, 2),
               "bed_missing_fraction": round(missing / max(1, windows), 3)}
     if source_me and source_me.is_file():

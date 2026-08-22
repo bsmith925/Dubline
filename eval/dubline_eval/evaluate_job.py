@@ -201,7 +201,8 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
     (work / "picture-offset.json").write_text(json.dumps(pic))
     mos_total = A.total(A.subtract(out_artic, dub_speech)) if out_mouth else None
     mixfid = (mix_fidelity(job_dir / "working-soundtrack-48k.flac", job_dir / "english-mix.flac", dub_speech, t_end,
-                           source_me=job_dir / "cinema-background.flac") if (job_dir / "english-mix.flac").is_file() else {})
+                           source_me=job_dir / "cinema-background.flac", source_dialogue=job_dir / "cinema-dialogue.flac")
+              if (job_dir / "english-mix.flac").is_file() else {})
     # face boxes from the FAN series (inner-lip landmarks are not stored; approximate the face box from face height)
     boxes = {}
     for r in src_mouth:
