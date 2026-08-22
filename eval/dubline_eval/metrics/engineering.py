@@ -237,3 +237,38 @@ def picture_offset(original: Path, output: Path, clip_start: float, lipsync_inte
     med = lambda xs: round(float(np.median(xs)), 1) if xs else None
     return {"outside_lipsync_frames": med(outs), "inside_lipsync_frames": med(ins), "fps": fps,
             "outside_values": outs, "inside_values": ins, "samples": len(ins) + len(outs)}
+
+
+def boundary_excess(original: Path, output: Path, clip_start: float, offset_frames: float, intervals: list[list[float]], t_end: float) -> dict:
+    """Edge steps of the delivered video MINUS the source's own step at the same instants
+    (offset-aligned), in mean-absolute-difference units on a 480x270 grayscale frame.
+    A source shot cut at a window edge contributes nothing; an edit seam does."""
+    co = cv2.VideoCapture(str(output)); fps = co.get(cv2.CAP_PROP_FPS) or 30.0
+    edges = sorted({int(round(t * fps)) for a, b in intervals for t in (a, b) if 0.2 < t < t_end})
+    if not edges:
+        return {"max_excess": None, "edges": []}
+    want_out = {i + d for i in edges for d in (-2, -1, 0, 1, 2)}
+    base = int(round(clip_start * fps)) + int(round(offset_frames or 0))
+    want_src = {j + base for j in want_out}
+    def read(cap, wanted):
+        got = {}; i = 0; hi = max(wanted)
+        while i <= hi:
+            ok, f = cap.read()
+            if not ok:
+                break
+            if i in wanted:
+                got[i] = cv2.resize(cv2.cvtColor(f, cv2.COLOR_BGR2GRAY), (480, 270)).astype(np.float32)
+            i += 1
+        cap.release(); return got
+    out = read(co, want_out); src = read(cv2.VideoCapture(str(original)), want_src)
+    rows = []
+    for i in edges:
+        best = None
+        for j in (i - 1, i, i + 1):
+            if j in out and j - 1 in out and j + base in src and j - 1 + base in src:
+                o = float(np.mean(np.abs(out[j] - out[j - 1]))); s_ = float(np.mean(np.abs(src[j + base] - src[j - 1 + base])))
+                best = max(best or -1e9, o - s_)
+        if best is not None:
+            rows.append({"t": round(i / fps, 2), "excess_mad": round(best, 2)})
+    return {"max_excess": round(max(r["excess_mad"] for r in rows), 2) if rows else None,
+            "mean_excess": round(float(np.mean([r["excess_mad"] for r in rows])), 2) if rows else None, "edges": rows}

@@ -80,12 +80,12 @@ def write_summary(bundle: Path) -> None:
              f"suite `{run['suite']}` · commit `{run['git_commit']}` · config `{run['config_hash']}` · models: "
              + ", ".join(f"{k}={v}" for k, v in (run.get('models') or {}).items()), "",
              f"{len(clips)} clip(s), {len(utts)} utterance(s)", "", "## Clips", "",
-             "| clip | job | utt | wall s | QC | lip-sync | ls cover | dead air s | unmuted src s | take overlap s | default audio | mouth-on-silence total s | pic offset out/in (frames) | in−out | boundary jump max | sharpness | bed RMS Δ dB | bed ratio Δ dB | bed missing | src speech w/o dub s | master squash dB | PSNR outside edit (med/min) | PSNR unedited (med/min) |",
-             "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+             "| clip | job | utt | wall s | QC | lip-sync | ls cover | dead air s | unmuted src s | take overlap s | default audio | mouth-on-silence total s | pic offset out/in (frames) | in−out | boundary jump max | seam excess | sharpness | bed RMS Δ dB | bed ratio Δ dB | bed missing | src speech w/o dub s | master squash dB | PSNR outside edit (med/min) | PSNR unedited (med/min) |",
+             "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for c in clips:
         lines.append(f"| {c['clip_id']} | {c['job_id']} | {c['utterance_count']} | {c.get('wall_seconds')} | {c.get('delivery_qc_passed')} | {c['lipsync_rendered']} | {c.get('lipsync_coverage')} | "
                      f"{c.get('dead_air_seconds')} | {c.get('unmuted_source_speech_seconds')} | {c.get('take_overlap_seconds')} | {c.get('default_audio_streams')} | "
-                     f"{c.get('mouth_motion_on_silence_total_s')} | {c.get('picture_offset_outside_lipsync_frames')}/{c.get('picture_offset_inside_lipsync_frames')} | {c.get('boundary_jump_max_x_median')} | {c.get('mouth_sharpness_ratio')} | "
+                     f"{c.get('mouth_motion_on_silence_total_s')} | {c.get('picture_offset_outside_lipsync_frames')}/{c.get('picture_offset_inside_lipsync_frames')} | {c.get('boundary_jump_max_x_median')} | {c.get('boundary_excess_max_mad')} | {c.get('mouth_sharpness_ratio')} | "
                      f"{(c.get('mix_fidelity') or {}).get('bed_rms_delta_db')} | {(c.get('mix_fidelity') or {}).get('bed_missing_fraction')} | {(c.get('mix_fidelity') or {}).get('source_speech_without_dub_s')} | {(c.get('mix_fidelity') or {}).get('master_dialogue_squash_db')} | "
                      f"{(c.get('video_fidelity') or {}).get('psnr_outside_edit_inside_lipsync')} | {(c.get('video_fidelity') or {}).get('psnr_unedited_frames')} |")
     zero = [(r["identity"]["clip_id"], r["identity"]["utterance_id"]) for r in utts if r.get("translation", {}).get("judge_adequacy") == 0.0]

@@ -199,6 +199,9 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
     pic = (E.picture_offset(original, job_dir / "dubbed-english.mkv", clip_start, ls_intervals, t_end)
            if original is not None and original.is_file() and (job_dir / "dubbed-english.mkv").is_file() else {})
     (work / "picture-offset.json").write_text(json.dumps(pic))
+    excess = (E.boundary_excess(original, job_dir / "dubbed-english.mkv", clip_start, pic.get("outside_lipsync_frames") or 0, ls_intervals, t_end)
+              if original is not None and original.is_file() and ls_intervals and (job_dir / "dubbed-english.mkv").is_file() else {})
+    (work / "boundary-excess.json").write_text(json.dumps(excess))
     mos_total = A.total(A.subtract(out_artic, dub_speech)) if out_mouth else None
     mixfid = (mix_fidelity(job_dir / "working-soundtrack-48k.flac", job_dir / "english-mix.flac", dub_speech, t_end,
                            source_me=(job_dir / "cinema-background-adaptive.flac" if (job_dir / "cinema-background-adaptive.flac").is_file() else job_dir / "cinema-background.flac"),
@@ -225,6 +228,7 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
         dead_air_seconds=dead.get("seconds"), unmuted_source_speech_seconds=unmuted.get("seconds"),
         take_overlap_seconds=overlaps.get("seconds"), default_audio_streams=defaults.get("default_audio_streams"),
         mouth_motion_on_silence_total_s=mos_total, boundary_jump_max_x_median=jumps.get("max_jump_x_median"),
+        boundary_excess_max_mad=excess.get("max_excess"),
         lipsync_coverage=(round(A.total(A.intersect(dub_speech, ls_intervals)) / A.total(dub_speech), 3) if dub_speech and ls_intervals else (0.0 if dub_speech else None)),
         picture_offset_outside_lipsync_frames=pic.get("outside_lipsync_frames"),
         picture_offset_inside_lipsync_frames=pic.get("inside_lipsync_frames"),
