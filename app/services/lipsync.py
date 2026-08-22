@@ -147,7 +147,11 @@ def apply_selective_lipsync(source: Path, cues: list[dict], dialogue_dir: Path, 
         audio = work / f"cue-{index + 1:06d}-audio.wav"
         crop: list[str] = []; crop_x = crop_y = 0
         box = (cue.get("visual_speaker") or {}).get("active_face_box")
-        if settings.lipsync_face_crop and box and frame_w and frame_h:
+        needs_crop = (visual_for_cue := cue.get("visual_speaker") or {}) and (
+            int(visual_for_cue.get("visible_faces") or 1) != 1 or float(visual_for_cue.get("face_area_ratio") or 1.0) < 0.05)
+        if settings.lipsync_face_crop and box and frame_w and frame_h and needs_crop:
+            # Crop only where it is needed (several faces, or a small face): on a large single
+            # face a 1.8x crop leaves too little margin and LatentSync's detector fails.
             # VIDEO-007: render only a square region around the active face (1.8x the face
             # box) so the renderer cannot pick another face, and paste it back in place.
             bx, by, bw, bh = [float(v) for v in box]
