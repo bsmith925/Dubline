@@ -149,7 +149,7 @@ class Settings(BaseSettings):
     # EXP-VIDEO-004: animate the mouth over the utterance span, or only where the take is voiced.
     lipsync_extent: Literal["utterance", "voiced"] = "utterance"
     # VIDEO-007: lip-sync the dominant face track on a crop around it (multi-face shots, PiP).
-    lipsync_face_crop: bool = False
+    lipsync_face_crop: bool = True
     # EXP-TIMING-001: for poorly fitting takes, voice the adapter's candidates and pick by MEASURED duration.
     dub_select_by_measured_duration: bool = True
     # EXP-TRANS-001: translate one line per call (scene as context) instead of a 12-line batch.
