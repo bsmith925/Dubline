@@ -58,3 +58,11 @@ Two runs of identical production code (`20260821-022651` vs `20260821-140505`): 
 - **Variable**: `LIPSYNC_PRE_RESAMPLE_25` (false → true): hand LatentSync `fps=25` output so its own `-r 25` is identity. Nothing else changes (same seed, steps, guidance, 25→30 resample).
 - **Metric**: new `render_lag_ms` per lip-synced utterance (background alignment of composite vs source; negative = output shows older content). Expected −67…−100 → within ±33 ms. Secondary: `boundary_jump_x_median` at exits should drop; sync offset unchanged or better.
 - Status: implemented, awaiting a run (queued after EXP-AUDIO-003 / core-v1 re-collect).
+
+## EXP-VIDEO-001 — 25→30 fps resample method, identical LatentSync frames (no change)
+
+- Arms on the same raw 25 fps renders (exp-4, cues 1–2; cue 3 pending): `minterpolate mi_mode=blend` (production), `fps=30` frame-hold, `minterpolate mi_mode=dup`. Reference: the raw 25 fps render itself.
+- Mouth sharpness ratio vs source — raw25 0.646 / 0.619; blend 0.692 / 0.630; hold 0.744 / 0.682; dup 0.746 / 0.682.
+- Duplicated-frame fraction — blend 0.12 / 0.00; hold 0.24 / 0.17; dup 0.24 / 0.17 (raw25 already 0.088 on cue 1).
+- SyncNet (vs the cue audio) — blend LSE-C 3.74 / 3.26; hold 3.72 / 3.01; dup 3.72 / 2.91; offset +2 frames in every arm.
+- **Conclusion**: the blurred mouth is LatentSync's own render (≈0.62–0.65 of source sharpness before any resample). Blend costs ≤0.05 more; hold recovers ≈0.05 at the price of 17–24 % duplicated frames (visible judder) and no sync gain. **Decision: no change** (keep blend). Sharpness has to come from the renderer (resolution/face-restoration track), not from the resample.
