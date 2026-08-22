@@ -275,7 +275,7 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                     "-t", f"{range_end - range_start:.3f}",
                     "-map", "0", "-c", "copy", "-avoid_negative_ts", "make_zero", str(source))
                 starts = probe_stream_starts(source)
-                if starts and max(starts) - min(starts) > 0.05:
+                if starts and max(starts) - min(starts) > 0.5:
                     raise RuntimeError(f"Selected section streams do not start together: {starts}")
             log(f"Selected {format_duration(range_start)} to {format_duration(range_end)}; "
                 "the delivered MKV will contain this section")

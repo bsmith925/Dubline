@@ -80,6 +80,7 @@ def run(suite_path: Path, server: str, jobs_root: Path, out_root: Path, runtimes
                        config_hash=hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()[:12],
                        config=config, models=server_models(server), server=server, clip_ids=list(jobs), notes=notes)
     (out / "run.json").write_text(json.dumps(record.to_dict(), indent=2))
+    failed: list[dict] = []
     with (out / "utterances.jsonl").open("w") as uf, (out / "clips.jsonl").open("w") as cf:
         for clip in suite["clips"]:
             job_id = jobs.get(clip["id"])
@@ -87,6 +88,10 @@ def run(suite_path: Path, server: str, jobs_root: Path, out_root: Path, runtimes
                 continue
             job_dir = jobs_root / job_id
             job_record = fetch_job(server, job_id)
+            if job_record.get("status") == "error":
+                print(f"SKIPPED {clip['id']}: job {job_id} failed: {str(job_record.get('error'))[:200]}", flush=True)
+                failed.append({"clip_id": clip["id"], "job_id": job_id, "error": str(job_record.get("error"))[:500]})
+                continue
             (out / "work" / clip["id"]).mkdir(parents=True, exist_ok=True)
             (out / "work" / clip["id"] / "job.json").write_text(json.dumps(job_record, ensure_ascii=False))
             records, clip_record, timeline = evaluate(job_dir, clip["id"], runtimes, out / "work" / clip["id"],
@@ -98,6 +103,9 @@ def run(suite_path: Path, server: str, jobs_root: Path, out_root: Path, runtimes
             (out / "work" / clip["id"] / "timeline.json").write_text(json.dumps(timeline))
             plot_timeline(timeline, f"{clip['id']} · job {job_id} · {record.git_commit}", out / "timelines" / f"{clip['id']}.png")
             print(f"evaluated {clip['id']}: {len(records)} utterances", flush=True)
+    if failed:
+        (out / "failed-jobs.json").write_text(json.dumps(failed, indent=1))
+        print(f"{len(failed)} clip(s) had failed jobs (see failed-jobs.json)", flush=True)
     from .report import write_summary
     write_summary(out)
     print("bundle:", out)

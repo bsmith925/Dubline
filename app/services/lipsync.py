@@ -211,7 +211,17 @@ def apply_selective_lipsync(source: Path, cues: list[dict], dialogue_dir: Path, 
 
     output = work / "video-override.mkv"
     inputs = ["-i", str(source)]
-    graph = ["[0:v:0]setpts=PTS-STARTPTS[base0]"]
+    # Rebase the base picture onto the AUDIO clock of the working copy: the delivered mix is
+    # built from that audio, so a stream-copied selection whose video begins a frame or two
+    # after its audio must keep that skew (PTS-STARTPTS alone would drop it).
+    stream_starts = {}
+    for item in probe.get("streams", []):
+        try:
+            stream_starts.setdefault(item.get("codec_type"), float(item.get("start_time") or 0.0))
+        except (TypeError, ValueError):
+            pass
+    skew = max(0.0, stream_starts.get("video", 0.0) - stream_starts.get("audio", 0.0))
+    graph = [f"[0:v:0]setpts=PTS-STARTPTS+{skew:.6f}/TB[base0]"]
     current = "base0"
     for number, (clip, start, end, _) in enumerate(completed, 1):
         inputs += ["-i", str(clip)]
