@@ -385,8 +385,11 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
         background_stem: Path | None = None
         working_soundtrack = folder / "working-soundtrack-48k.flac"
         if not working_soundtrack.is_file():
+            # first_pts=0: keep the audio on the container clock (leading silence up to its
+            # first packet) so cue times, the mix and the picture share one origin even when a
+            # stream-copied selection starts its audio a frame or two after its video.
             run("ffmpeg", "-y", "-v", "error", "-i", str(source), "-map", f"0:{working_audio['index']}",
-                "-vn", "-ar", "48000", "-c:a", "flac", str(working_soundtrack))
+                "-vn", "-af", "aresample=async=1:first_pts=0", "-ar", "48000", "-c:a", "flac", str(working_soundtrack))
         dialogue_source: Path = working_soundtrack
         if audio_mode == "separate":
             source_audio_streams = [stream for stream in probe.get("streams", []) if stream.get("codec_type") == "audio"]
