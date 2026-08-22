@@ -29,6 +29,7 @@ METRICS: dict[str, tuple[tuple[str, ...], bool]] = {
     "sync_low_conf_fraction": (("visual", "sync_low_conf_fraction"), False),
     "mouth_sharpness_ratio": (("visual", "mouth_sharpness_ratio"), True),
     "boundary_jump_x_median": (("visual", "boundary_jump_x_median"), False),
+    "render_lag_ms": (("visual", "render_lag_ms"), False),
     "source_residual_under_take_db": (("visual", "source_residual_under_take_db"), False),
     "source_residual_s_above_50db": (("visual", "source_residual_seconds_above_50db"), False),
     "retries": (("system", "retries"), False),

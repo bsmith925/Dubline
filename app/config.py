@@ -132,6 +132,9 @@ class Settings(BaseSettings):
     dub_mastering_mode: Literal["dynamic", "linear"] = "dynamic"
     # EXP-AUDIO-003: mute the whole span of a re-voiced utterance, not only its aligned words.
     dub_mute_whole_utterance: bool = True
+    # EXP-VIDEO-003: feed LatentSync an exact fps=25 clip instead of letting it run `ffmpeg -r 25`
+    # (measured ~60 ms picture lag on 30 fps sources).
+    lipsync_pre_resample_25: bool = True
     latentsync_repo: Path = Path("vendor/LatentSync")
     latentsync_runtime: Path = Path("vendor/latentsync-env")
 

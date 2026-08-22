@@ -141,16 +141,24 @@ def apply_selective_lipsync(source: Path, cues: list[dict], dialogue_dir: Path, 
         if engine == "latentsync":
             rendered = results / "latentsync" / result_name
             rendered.parent.mkdir(parents=True, exist_ok=True)
+            source_fps = _video_fps(clip)
+            model_input = clip
+            if settings.lipsync_pre_resample_25 and source_fps and abs(source_fps - 25.0) > 0.01:
+                # EXP-VIDEO-003: LatentSync converts its input with `ffmpeg -r 25`, which we
+                # measured to lag the picture by ~60 ms (47-73 ms) on 30 fps sources; the
+                # `fps=25` filter is exact (±13 ms) and `-r 25` on a 25 fps input is identity.
+                model_input = clip.with_name(clip.stem + "-25fps.mp4")
+                subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", str(clip), "-an", "-vf", "fps=25",
+                                "-c:v", "libx264", "-crf", "14", "-pix_fmt", "yuv420p", str(model_input)], check=True)
             command = [str(runtime), "-m", "scripts.inference", "--unet_config_path", "configs/unet/stage2_512.yaml",
                        "--inference_ckpt_path", "checkpoints/latentsync_unet.pt", "--inference_steps", "20",
-                       "--guidance_scale", "1.5", "--seed", "1247", "--video_path", str(clip), "--audio_path", str(audio),
+                       "--guidance_scale", "1.5", "--seed", "1247", "--video_path", str(model_input), "--audio_path", str(audio),
                        "--video_out_path", str(rendered)]
             ok, tail = _run(command, repo, checkpoint)
             generated = rendered
             if ok and generated.is_file():
                 # LatentSync renders at 25 fps; bring the shot back to the source cadence so
                 # the composite stays frame-accurate (the overlay enables by time).
-                source_fps = _video_fps(clip)
                 if source_fps and abs(source_fps - 25.0) > 0.01:
                     resampled = rendered.with_name(rendered.stem + f"-{source_fps:g}fps.mp4")
                     subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", str(rendered), "-an", "-vf",

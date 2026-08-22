@@ -45,3 +45,16 @@ Two runs of identical production code (`20260821-022651` vs `20260821-140505`): 
 - **Expected**: residual-under-take → floor inside utterances; preserved source outside takes unchanged.
 - **Actual**: residual seconds > −50 dB **10.8 s → 1.9 s** (7 → 6 cues affected); preserved source outside takes 0.43 s → 0.43 s (identical). The 18.2 s bleed is gone. All remaining residual is in take **overrun**: every take ends 0.1–1.05 s after its utterance (cue 7: utt 59.16–67.32, take to 68.37) so the inter-utterance breath plays under the dub tail. Worst remaining: −25.6 dB at 68.1–68.3 s.
 - **Decision**: keep (default on). Remaining residual is a distinct defect — take extent exceeds utterance extent — to be characterized as EXP-AUDIO-004 (mute under the placed take extent vs constrain placement; one variable), not folded in here.
+
+## EXP-VIDEO-002 — boundary-jump decomposition (no change)
+
+- Method: at each lip-sync clip edge of exp-4 (job 4bf7a9d62b26, 3 clips) measure the output's frame-to-frame step vs the source's at the same edge; compare the first inside frame with the co-timed source frame (face region vs background); and estimate the temporal offset of the composite vs the source on the **background** (untouched by lip-sync) every 0.5 s through the clip.
+- Result: every edge is a hard cut (output step 6.2–9.7 vs source motion 0.6–4.3). Inside every clip the composite is a **constant 2–3 frames (67–100 ms) behind the source** (bg MAD 1.3 at the best offset vs up to 21 at the same instant). Not drift: frame counts match (284/284). Cue 1's first ~2.5 s matches no source frame within ±8 (face MAD 12–29): that is the "mouth moving on its own at the beginning" region and is a separate defect.
+- Cause: isolated to LatentSync's `read_video`, which converts the input with `ffmpeg -r 25`. On the 30 fps clip that conversion alone shifts content by −47…−73 ms; `-vf fps=25` is exact (±13 ms) and `-r 25` on a 25 fps input is identity (MAD 0.15).
+- Decomposition: ≈ 60 ms temporal lag (LatentSync input conversion) + ≤ 1 frame resample quantization + appearance delta at the face (cue 1 entry MAD 11.7, cue 2 exit 10.6) which remains after timing is fixed.
+
+## EXP-VIDEO-003 — pre-resample the LatentSync input to exact 25 fps
+
+- **Variable**: `LIPSYNC_PRE_RESAMPLE_25` (false → true): hand LatentSync `fps=25` output so its own `-r 25` is identity. Nothing else changes (same seed, steps, guidance, 25→30 resample).
+- **Metric**: new `render_lag_ms` per lip-synced utterance (background alignment of composite vs source; negative = output shows older content). Expected −67…−100 → within ±33 ms. Secondary: `boundary_jump_x_median` at exits should drop; sync offset unchanged or better.
+- Status: implemented, awaiting a run (queued after EXP-AUDIO-003 / core-v1 re-collect).

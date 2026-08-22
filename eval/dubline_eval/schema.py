@@ -106,6 +106,7 @@ class VisualMetrics:
     sync_low_conf_fraction: float | None        # share of frames with framewise SyncNet confidence < 1
     mouth_sharpness_ratio: float | None         # lip-synced mouth region sharpness / source (1 = as sharp)
     boundary_jump_x_median: float | None        # max frame change at this shot's clip edges ÷ clip median
+    render_lag_ms: float | None                 # composited picture vs source timing inside the lip-sync interval (bg alignment)
     source_residual_under_take_db: float | None # stem minus placed take (source audio that survived muting)
     source_residual_seconds_above_50db: float | None
     mouth_motion_on_silence: float | None       # seconds of articulation while target speech is silent

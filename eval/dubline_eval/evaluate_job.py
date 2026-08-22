@@ -169,6 +169,8 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
                 mouth_sharpness_ratio=(E.mouth_sharpness_ratio(job_dir / "selected-source.mkv", job_dir / "dubbed-english.mkv",
                                                                [lipsync_interval], t_end) if lipsync_applied and lipsync_interval else None),
                 boundary_jump_x_median=None,
+                render_lag_ms=(E.render_lag_ms(job_dir / "selected-source.mkv", job_dir / "dubbed-english.mkv", lipsync_interval).get("render_lag_ms")
+                               if lipsync_interval and (job_dir / "dubbed-english.mkv").is_file() and (lipsync_interval[1] - lipsync_interval[0]) > 1.0 else None),
                 source_residual_under_take_db=resid.get("max_window_db"),
                 source_residual_seconds_above_50db=resid.get("seconds_above_-50db"),
                 mouth_motion_on_silence=motion_on_silence, speech_on_static_mouth=speech_on_static,
