@@ -186,3 +186,7 @@ Top-5 failure modes after baseline-3 (by tails):
 ## VALID-002 — harness blind spot on face-crop cues
 
 - In `210233` the whole-frame FAN tracker reported no articulation on the crop-rendered PiP cues (speech_on_static_mouth 3.4–6.2 s per cue, on-silence 0) while SyncNet on the crop scored LSE-C 4.3–7.3. The tracker was on the wrong/too-small face. Per-cue articulation (and `coverage_articulation`) is now computed on the renderer's crop for such cues. `aperture_ratio` still uses the whole-frame series — to move next. Values for cropped cues in bundles before this change are not trustworthy.
+
+## EXP-TIMING-003 — measure alternative phrasings for every take
+
+- **Variable**: `DUB_MEASURE_ALL_TAKES` false → true (TIMING-001 currently measures only takes with fill < 75 % or over the stretch limit). **Metrics**: fill p10/p50/p90, padding p90, stretch p90, judge adequacy (candidates adequacy-gated), wall time (cost). Queued on trans-001 after TIMING-002; compare against the TIMING-002 bundle.
