@@ -150,3 +150,26 @@ Two runs of identical production code (`20260821-022651` vs `20260821-140505`): 
 
 - core-v1 baseline-2: 16 cues across 6 clips have a digitally silent Bandit dialogue stem (−105…−119 dB) while the bed is −13…−30 dB there (tos-lab 5/17, office 4/18, rooftop 3/7). The confidence gate already routes those cues to RoFormer/HTDemucs recovery for references, but the mix kept Bandit's background → that voice plays under the dub, unmuted.
 - SEP-002 (`DUB_ADAPTIVE_BACKGROUND`, default on): over such cues the bed becomes film mix − the chosen vocal stem, 35 ms fades. Offline on tos-lab job 751aed49ca62: 5 cues rebuilt; bed over them −14.0 → −17.1, −16.1 → −17.6, −30.2 → −31.8 dB (small: these spans are loud effects, which is why Bandit lost the voice); elsewhere max |Δ| = 0.0. Objective, harmless, limited benefit on this corpus. Harness reads the adaptive bed when present.
+
+## core-v1 baseline-3 (`20260822-153143-core-v1`) vs baseline-2 (`094315`)
+
+| metric | baseline-2 | baseline-3 |
+|---|---|---|
+| judge adequacy == 0 (misattributed) | 9 | **0** |
+| judge adequacy < 0.7 | 24 | 15 |
+| judge adequacy mean | 0.81 | 0.89 |
+| padding p90 / max (ms) | 2110 / 6686 | 1253 / 9617 |
+| stretch p90 (%) | 13.4 | 5.8 |
+| dead air gb-fr / gb-es (s) | 14.3 / 14.9 | 7.3 / 8.8 |
+| master dialogue squash (dB) | −2.9…+0.1 | −0.4…+0.6 |
+| default audio tracks | 2 | 1 |
+| speaker similarity mean | 0.67 | 0.70 |
+| LSE-C mean (n=15) | 4.14 | 4.57 |
+| wall time gb-fr / gb-es (s) | 797 / 966 | 1128 / 1122 |
+
+Top-5 failure modes after baseline-3 (by tails):
+1. **Lip-sync coverage**: most cues skipped by the visual gate (two face tracks / PiP / two-shots) → source mouth visible on silence 5–33 s per clip. → EXP-VIDEO-007 (active-track face crop) running.
+2. **Dub voice vs bed on film content**: dialogue-to-bed SNR −4.8…+3 dB (gb +24…+40); level matcher saturated. → MIX-004 queued (cap), MIX-005 balance awaits listener pick.
+3. **Translation length vs slot**: padding max 9.6 s, fill p10 still low on talking-head content; voiced overrun on half the takes. → timing track (candidate measurement on all takes; adapter word target from measured rates).
+4. **Renderer sharpness**: mouth sharpness 0.38 (thom-celia), 0.60 (tos-lab) → lip-generation track; face crop may help small faces.
+5. **Speaker similarity tail**: min 0.22, p10 ≈ 0.45 (x-vector cross-lingual) → voice track (ICL vs x-vector per language; reference selection).
