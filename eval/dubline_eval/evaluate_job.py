@@ -226,6 +226,8 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
         mouth_motion_on_silence_total_s=mos_total, boundary_jump_max_x_median=jumps.get("max_jump_x_median"),
         picture_offset_outside_lipsync_frames=pic.get("outside_lipsync_frames"),
         picture_offset_inside_lipsync_frames=pic.get("inside_lipsync_frames"),
+        picture_sync_inside_minus_outside_frames=(round(pic["inside_lipsync_frames"] - pic["outside_lipsync_frames"], 1)
+                                                  if pic.get("inside_lipsync_frames") is not None and pic.get("outside_lipsync_frames") is not None else None),
         mouth_sharpness_ratio=(E.mouth_sharpness_ratio(job_dir / "selected-source.mkv", job_dir / "dubbed-english.mkv", ls_intervals, t_end)
                                if ls_intervals else None),
         mix_fidelity=mixfid, video_fidelity=vidfid,

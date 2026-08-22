@@ -3,6 +3,7 @@ from __future__ import annotations
 """Confidence-gated MuseTalk lip-sync for every utterance with a clean, visible mouth."""
 
 import json
+import math
 import shutil
 import subprocess
 from pathlib import Path
@@ -223,9 +224,14 @@ def apply_selective_lipsync(source: Path, cues: list[dict], dialogue_dir: Path, 
     skew = max(0.0, stream_starts.get("video", 0.0) - stream_starts.get("audio", 0.0))
     graph = [f"[0:v:0]setpts=PTS-STARTPTS+{skew:.6f}/TB[base0]"]
     current = "base0"
+    base_fps = _video_fps(source) or 25.0
     for number, (clip, start, end, _) in enumerate(completed, 1):
         inputs += ["-i", str(clip)]
         shifted = f"clip{number}"; merged = f"base{number}"
+        # VIDEO-006: place the clip on the base frame grid (snap down). Placing at the raw
+        # utterance time landed the rendered clip one frame late (inside-vs-outside picture
+        # offset −1 frame on 23.976 and 30 fps sources; offline A/B floor/ceil/±1 frame).
+        start = math.floor(start * base_fps + 1e-6) / base_fps
         graph.append(f"[{number}:v:0]setpts=PTS-STARTPTS+{start:.6f}/TB[{shifted}]")
         graph.append(f"[{current}][{shifted}]overlay=eof_action=pass:shortest=0:enable='between(t,{start:.6f},{end:.6f})'[{merged}]")
         current = merged

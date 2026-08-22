@@ -162,6 +162,7 @@ class ClipRecord:
     boundary_jump_max_x_median: float | None = None
     picture_offset_outside_lipsync_frames: float | None = None   # delivered picture vs ORIGINAL source, outside lip-sync windows (0 = in sync)
     picture_offset_inside_lipsync_frames: float | None = None
+    picture_sync_inside_minus_outside_frames: float | None = None   # the sync defect itself; 0 = rendered clips sit exactly on the base
     mouth_sharpness_ratio: float | None = None
     mix_fidelity: dict[str, Any] = field(default_factory=dict)      # metrics/mix.py
     video_fidelity: dict[str, Any] = field(default_factory=dict)    # metrics/video_fidelity.py
