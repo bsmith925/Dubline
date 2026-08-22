@@ -13,9 +13,10 @@ import subprocess
 from pathlib import Path
 
 
-def _extract(video: Path, start: float, duration: float, out: Path, audio_stream: int = 0) -> Path:
+def _extract(video: Path, start: float, duration: float, out: Path, audio_stream: int = 0, crop: list | None = None) -> Path:
+    vf = (f"crop={int(crop[2])}:{int(crop[2])}:{int(crop[0])}:{int(crop[1])}," if crop else "") + "scale=-2:480"
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{start:.3f}", "-t", f"{duration:.3f}", "-i", str(video),
-                    "-map", "0:v:0", "-map", f"0:a:{audio_stream}", "-r", "25", "-vf", "scale=-2:480",
+                    "-map", "0:v:0", "-map", f"0:a:{audio_stream}", "-r", "25", "-vf", vf,
                     "-c:v", "libx264", "-crf", "18", "-c:a", "aac", "-ar", "16000", str(out)], check=True, capture_output=True)
     return out
 
@@ -50,7 +51,7 @@ def _syncnet(clip: Path, repo: Path, runtime: Path, work: Path, reference: str) 
 
 
 def score_interval(output_video: Path, source_video: Path, start: float, duration: float, work: Path,
-                   repo: Path, runtime: Path, tag: str) -> dict:
+                   repo: Path, runtime: Path, tag: str, crop: list | None = None) -> dict:
     """Return {'output': {...}, 'source': {...}, 'delta_lse_d', 'delta_lse_c', 'delta_offset_frames'}."""
     work.mkdir(parents=True, exist_ok=True)
     result: dict = {}
@@ -58,7 +59,7 @@ def score_interval(output_video: Path, source_video: Path, start: float, duratio
         if not video.is_file():
             result[name] = {"error": "missing video"}
             continue
-        clip = _extract(video, start, duration, work / f"{tag}-{name}.mp4")
+        clip = _extract(video, start, duration, work / f"{tag}-{name}.mp4", crop=crop)
         result[name] = _syncnet(clip, repo, runtime, work / "syncnet", f"{tag}-{name}") or {"error": "no result"}
     o, s = result.get("output", {}), result.get("source", {})
     if "lse_d" in o and "lse_d" in s:

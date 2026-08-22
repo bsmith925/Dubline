@@ -126,9 +126,14 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
         resid = (E.source_residual_under_take(job_dir / "english-dialogue.flac", matched_take, start)
                  if matched_take.is_file() and (job_dir / "english-dialogue.flac").is_file() and not cue.get("nonverbal_filler") else {})
         sync = {}
-        if cue.get("mouth_visible") and (visual.get("visible_faces") == 1) and runtimes.get("syncnet_repo") and end - start >= 1.0:
+        crop_box = q.get("visual_lipsync_crop")
+        # Score A/V sync on every lip-synced cue (on its crop when one was used, so SyncNet sees
+        # the active face) plus single-face cues that were not lip-synced (reference).
+        if runtimes.get("syncnet_repo") and end - start >= 1.0 and (
+                lipsync_applied or (cue.get("mouth_visible") and visual.get("visible_faces") == 1)):
             sync = score_interval(job_dir / "dubbed-english.mkv", job_dir / "selected-source.mkv", start, end - start,
-                                  work / "sync", runtimes["syncnet_repo"], runtimes["musetalk"], f"u{int(cue['id']):03d}")
+                                  work / "sync", runtimes["syncnet_repo"], runtimes["musetalk"], f"u{int(cue['id']):03d}",
+                                  crop=crop_box if lipsync_applied else None)
         so, ss = sync.get("output", {}), sync.get("source", {})
         src_words = len(cue.get("words") or []) or len(str(cue.get("source", "")).split())
         tgt_words = len(str(cue.get("english", "")).split())
