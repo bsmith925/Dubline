@@ -134,7 +134,7 @@ class Settings(BaseSettings):
     dub_master_limiter_allowance_db: float = 3.0
     # MIX-004: cap on the gain that matches a take to the source performance level (was 12 dB
     # and saturated on every cue of film content: takes landed 10-17 dB under the dialogue).
-    dub_level_match_max_db: float = 12.0
+    dub_level_match_max_db: float = 24.0
     # MIX-005: mix balance of the dub voice against the separated bed (stereo/mono path).
     dub_voice_gain_db: float = 0.0
     # SEP-002: rebuild the bed as film mix minus the recovery vocal stem over cues the
