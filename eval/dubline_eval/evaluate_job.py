@@ -244,7 +244,8 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
     src_by_cue = {int(c["id"]): str(c.get("source") or "") for c in cues if not c.get("nonverbal_filler")}
     dub_by_cue = {int(c["id"]): str(c.get("spoken_text") or c.get("english") or "") for c in cues if not c.get("nonverbal_filler")}
     heard_by_cue = {int(c["id"]): str((c.get("qc") or {}).get("backtranscription") or "") for c in cues if not c.get("nonverbal_filler")}
-    all_mentions = [n for text in src_by_cue.values() for n in ENT.candidate_names(text)]
+    known_keys = ENT.mid_sentence_keys(src_by_cue.values())
+    all_mentions = [n for text in src_by_cue.values() for n in ENT.candidate_names(text, known_keys)]
     ent = {"consistency": ENT.consistency(ENT.cluster_names(all_mentions)),
            "preservation": ENT.preservation(src_by_cue, dub_by_cue),
            "tts_pronunciation": ENT.preservation(dub_by_cue, heard_by_cue)}

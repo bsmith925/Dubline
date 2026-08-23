@@ -38,9 +38,24 @@ def _phonetic_key(token: str) -> str:
     return t
 
 
-def candidate_names(text: str) -> list[str]:
-    tokens = re.findall(r"\b[A-ZÀ-Þ][\w'’\-]+\b", text or "")
-    return [t for t in tokens if t.lower() not in SENTENCE_STARTERS and len(t) > 2]
+def candidate_names(text: str, known: set[str] | None = None) -> list[str]:
+    """Capitalized tokens that are not sentence-initial (or are known to recur mid-sentence)."""
+    out = []
+    for m in re.finditer(r"\b[A-ZÀ-Þ][\w'’\-]+\b", text or ""):
+        t = m.group(0)
+        if len(t) <= 2 or t.lower() in SENTENCE_STARTERS:
+            continue
+        before = (text[:m.start()]).rstrip()
+        initial = not before or before[-1] in ".!?…:"
+        if initial and not (known and _phonetic_key(t) in known):
+            continue
+        out.append(t)
+    return out
+
+
+def mid_sentence_keys(texts) -> set[str]:
+    """Phonetic keys of tokens seen capitalized mid-sentence anywhere in the program."""
+    return {_phonetic_key(n) for text in texts for n in candidate_names(text)}
 
 
 def cluster_names(mentions: list[str]) -> dict[str, list[str]]:
@@ -69,8 +84,9 @@ def consistency(clusters: dict[str, list[str]]) -> dict:
 
 def cross_agreement(primary_by_cue: dict[int, str], second_by_cue: dict[int, str]) -> dict:
     total = agreed = 0; misses = []
+    known = mid_sentence_keys(primary_by_cue.values())
     for cue_id, text in primary_by_cue.items():
-        names = candidate_names(text)
+        names = candidate_names(text, known)
         if not names or cue_id not in second_by_cue:
             continue
         second_keys = {_phonetic_key(n) for n in candidate_names(second_by_cue[cue_id])} | {_phonetic_key(w) for w in re.findall(r"\w+", second_by_cue[cue_id])}
@@ -87,8 +103,9 @@ def cross_agreement(primary_by_cue: dict[int, str], second_by_cue: dict[int, str
 def preservation(source_by_cue: dict[int, str], dub_by_cue: dict[int, str]) -> dict:
     """Share of source names (per cue) whose phonetic key appears in that cue's dub text."""
     total = kept = 0; lost = []
+    known = mid_sentence_keys(source_by_cue.values())
     for cue_id, text in source_by_cue.items():
-        names = candidate_names(text)
+        names = candidate_names(text, known)
         if not names:
             continue
         dub_keys = {_phonetic_key(w) for w in re.findall(r"[\w'’\-]+", dub_by_cue.get(cue_id, ""))}
