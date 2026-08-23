@@ -132,6 +132,8 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
         q = cue.get("qc") or {}
         visual = cue.get("visual_speaker") or {}
         take = job_dir / "fitted" / f"{int(cue['id']):06d}.wav"
+        from .metrics.naturalness import naturalness_mos
+        take_mos = naturalness_mos(take) if take.is_file() and not cue.get("nonverbal_filler") else None
         take_speech = audio.speech_intervals(take, thresh_db=-40, offset=start) if take.is_file() else []
         span_src_speech = audio.clip(source_speech, start, end)
         span_src_artic = audio.clip(src_artic, start, end)
@@ -216,6 +218,7 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
                 source_residual_seconds_above_50db=resid.get("seconds_above_-50db"),
                 mouth_motion_on_silence=motion_on_silence, speech_on_static_mouth=speech_on_static,
                 articulation_strength=artic_strength,
+                naturalness_mos=take_mos,
                 coverage_articulation=round(coverage, 3) if coverage is not None else None,
                 identity_similarity_delta=None,
                 aperture_ratio=(round(mean_aperture(cue_out_series, start, end) / mean_aperture(cue_src_series, start, end), 3)

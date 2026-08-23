@@ -20,6 +20,7 @@ METRICS: dict[str, tuple[tuple[str, ...], bool]] = {
     "mouth_motion_on_silence_s": (("visual", "mouth_motion_on_silence"), False),
     "speech_on_static_mouth_s": (("visual", "speech_on_static_mouth"), False),
     "articulation_strength": (("visual", "articulation_strength"), True),
+    "naturalness_mos": (("visual", "naturalness_mos"), True),
     "lipsync_clip_length_ratio_err": (("visual", "lipsync_clip_length_ratio"), False),
     "aperture_ratio": (("visual", "aperture_ratio"), True),
     "sync_lse_c": (("visual", "sync_lse_c"), True),
