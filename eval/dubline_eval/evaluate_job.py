@@ -239,6 +239,16 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
     excess = (E.boundary_excess(original, job_dir / "dubbed-english.mkv", clip_start, pic.get("outside_lipsync_frames") or 0, ls_intervals, t_end)
               if original is not None and original.is_file() and ls_intervals and (job_dir / "dubbed-english.mkv").is_file() else {})
     (work / "boundary-excess.json").write_text(json.dumps(excess))
+    # Entities: names as first-class objects (see docs/entity-track.md)
+    from .metrics import entities as ENT
+    src_by_cue = {int(c["id"]): str(c.get("source") or "") for c in cues if not c.get("nonverbal_filler")}
+    dub_by_cue = {int(c["id"]): str(c.get("spoken_text") or c.get("english") or "") for c in cues if not c.get("nonverbal_filler")}
+    heard_by_cue = {int(c["id"]): str((c.get("qc") or {}).get("backtranscription") or "") for c in cues if not c.get("nonverbal_filler")}
+    all_mentions = [n for text in src_by_cue.values() for n in ENT.candidate_names(text)]
+    ent = {"consistency": ENT.consistency(ENT.cluster_names(all_mentions)),
+           "preservation": ENT.preservation(src_by_cue, dub_by_cue),
+           "tts_pronunciation": ENT.preservation(dub_by_cue, heard_by_cue)}
+    (work / "entities.json").write_text(json.dumps(ent, ensure_ascii=False, indent=1))
     mos_total = A.total(A.subtract(out_artic, dub_speech)) if out_mouth else None
     mixfid = (mix_fidelity(job_dir / "working-soundtrack-48k.flac", job_dir / "english-mix.flac", dub_speech, t_end,
                            source_me=(job_dir / "cinema-background-adaptive.flac" if (job_dir / "cinema-background-adaptive.flac").is_file() else job_dir / "cinema-background.flac"),
@@ -266,6 +276,10 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
         take_overlap_seconds=overlaps.get("seconds"), default_audio_streams=defaults.get("default_audio_streams"),
         mouth_motion_on_silence_total_s=mos_total, boundary_jump_max_x_median=jumps.get("max_jump_x_median"),
         boundary_excess_max_mad=excess.get("max_excess"),
+        entity_consistency=ent["consistency"].get("entity_consistency"),
+        entity_clusters_inconsistent=ent["consistency"].get("clusters_inconsistent"),
+        translation_entity_preservation=ent["preservation"].get("translation_entity_preservation"),
+        tts_entity_pronunciation=ent["tts_pronunciation"].get("translation_entity_preservation"),
         lipsync_coverage=(round(A.total(A.intersect(dub_speech, ls_intervals)) / A.total(dub_speech), 3) if dub_speech and ls_intervals else (0.0 if dub_speech else None)),
         picture_offset_outside_lipsync_frames=pic.get("outside_lipsync_frames"),
         picture_offset_inside_lipsync_frames=pic.get("inside_lipsync_frames"),

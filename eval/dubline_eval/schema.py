@@ -162,6 +162,10 @@ class ClipRecord:
     mouth_motion_on_silence_total_s: float | None = None   # whole timeline, not just inside utterances
     boundary_jump_max_x_median: float | None = None
     boundary_excess_max_mad: float | None = None           # edge step minus the source's own step (offset-aligned); seams only
+    entity_consistency: float | None = None                 # 1.0 = every recurring name spelled one way in the source transcript
+    entity_clusters_inconsistent: int | None = None
+    translation_entity_preservation: float | None = None    # share of source names (phonetic) present in the dub text
+    tts_entity_pronunciation: float | None = None           # share of dub-text names found (phonetic) in the take back-transcription
     lipsync_coverage: float | None = None                   # share of dub speech time inside rendered lip-sync windows
     picture_offset_outside_lipsync_frames: float | None = None   # delivered picture vs ORIGINAL source, outside lip-sync windows (0 = in sync)
     picture_offset_inside_lipsync_frames: float | None = None

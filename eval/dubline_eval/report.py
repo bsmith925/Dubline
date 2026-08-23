@@ -92,6 +92,9 @@ def write_summary(bundle: Path) -> None:
     zero = [(r["identity"]["clip_id"], r["identity"]["utterance_id"]) for r in utts if r.get("translation", {}).get("judge_adequacy") == 0.0]
     low = sum(1 for r in utts if (r.get("translation", {}).get("judge_adequacy") is not None) and r["translation"]["judge_adequacy"] < 0.7)
     lines += ["", f"Translation: {len(zero)} utterance(s) with judge adequacy 0.0 (misattributed/untranslated): {zero[:12]}; {low} below 0.7"]
+    ent_rows = [(c["clip_id"], c.get("entity_consistency"), c.get("entity_clusters_inconsistent"), c.get("translation_entity_preservation"), c.get("tts_entity_pronunciation")) for c in clips]
+    lines += ["", "## Entities (names/terminology)", "", "| clip | consistency | inconsistent clusters | translation preservation | TTS pronunciation |", "|---|---|---|---|---|"]
+    lines += [f"| {a} | {b} | {c_} | {d} | {e} |" for a, b, c_, d, e in ent_rows]
     lines += ["", "## Utterance metrics (raw distributions)", "", "| metric | n | mean | median | p90 | max | min |", "|---|---|---|---|---|---|---|"]
     for name, s in summary.items():
         lines.append(f"| {name} | {s['n']} | {s['mean']} | {s['median']} | {s['p90']} | {s['max']} | {s['min']} |")
