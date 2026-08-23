@@ -22,3 +22,4 @@
 {"id":"EXP-VIDEO-008","variable":"LATENTSYNC_GUIDANCE_SCALE 1.5->2.5","clip":"core-v0","metric":"LSE-C / articulation","before":"n/a","after":"n/a","regressions":"run invalid (setting absent on server)","decision":"re-run"}
 {"id":"EXP-MIX-006","variable":"DUB_MATCH_SOURCE_BALANCE off->on","clip":"trans-001","metric":"bed_ratio_delta_db","before":"n/a","after":"n/a","regressions":"run invalid (setting absent on server)","decision":"re-run"}
 {"id":"EXP-VIDEO-008","variable":"LATENTSYNC_GUIDANCE_SCALE 1.5->2.5","clip":"core-v0","metric":"LSE-C mean / aperture_ratio","before":"5.25 / 0.94","after":"5.96 / 1.04","regressions":"mouth_motion_on_silence 1.47->1.65 s","decision":"keep"}
+{"id":"EXP-MIX-006","variable":"DUB_MATCH_SOURCE_BALANCE off->on","clip":"trans-001","metric":"bed_ratio_delta_db tos-lab / d2b_snr","before":"-3.33 / -1.77","after":"-1.42 / -0.13","regressions":"gb-es squash 0 -> -1.3 dB","decision":"keep"}
