@@ -1,23 +1,36 @@
-# core-v0: bootstrap suite — the material we already have, fingerprinted. Kept small on
-# purpose; core-v1 widens to 8–12 diverse clips (two speakers, overlap, cuts, profiles,
-# occlusion, PiP, expressive speech, a second target language) and is then frozen.
 name: core-v0
 clips:
-  - id: gb-en-fr-0090
-    path: /mnt/media/dubline/sources/gingerbill-cleancode.en.1080p.mkv
-    start: 0
-    end: 90
-    source_language: auto
-    target_language: French
-    tags: [talking-head, beard, pip-after-32s, second-face-in-screenshare, rapid-speech, hesitations]
-    fingerprint: sha256:TBD
-    notes: English original; screen-share with PiP from ~32 s.
-  - id: gb-es-en-0090
-    path: /mnt/media/dubline/sources/gingerbill-cleancode.es.mkv
-    start: 0
-    end: 90
-    source_language: Spanish
-    target_language: English
-    tags: [talking-head, beard, synthetic-source-voice, reference-transcript]
-    fingerprint: sha256:TBD
-    notes: YouTube auto-dub Spanish track; English original transcript is ground truth.
+- id: gb-en-fr-0090
+  path: /mnt/media/dubline/sources/gingerbill-cleancode.en.1080p.mkv
+  start: 0
+  end: 90
+  source_language: auto
+  target_language: French
+  tags:
+  - talking-head
+  - beard
+  - pip-after-32s
+  - second-face-in-screenshare
+  - rapid-speech
+  - hesitations
+  fingerprint: sha256:TBD
+  notes: English original; screen-share with PiP from ~32 s.
+  glossary:
+    Murata: Muratori
+    Casey Murata: Casey Muratori
+- id: gb-es-en-0090
+  path: /mnt/media/dubline/sources/gingerbill-cleancode.es.mkv
+  start: 0
+  end: 90
+  source_language: Spanish
+  target_language: English
+  tags:
+  - talking-head
+  - beard
+  - synthetic-source-voice
+  - reference-transcript
+  fingerprint: sha256:TBD
+  notes: YouTube auto-dub Spanish track; English original transcript is ground truth.
+  glossary:
+    Murata: Muratori
+    Casey Murata: Casey Muratori

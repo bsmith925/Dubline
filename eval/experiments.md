@@ -197,3 +197,7 @@ Top-5 failure modes after baseline-3 (by tails):
 
 - With crop-aware tracking (`20260823-013826-core-v0` re-collect) the rendered mouth's aperture std is ≈0.013–0.030 during dub silence and ≈0.013–0.041 during dub speech — barely different — while the source actor's speech std is 0.025–0.039 (and even his pauses 0.03–0.045). The "mouth moving in silence" inside rendered windows is the renderer's uniformly weak motion, not idle jitter; under speech it articulates ~0.6× the source. New per-cue metric `articulation_strength` (voiced aperture std, output/source).
 - **Variable**: `LATENTSYNC_GUIDANCE_SCALE` 1.5 → 2.5. **Metrics**: articulation_strength (expect ↑ toward 1), LSE-C/LSE-D, mouth sharpness, identity (ArcFace in the A/B tool if needed), boundary excess. Queued on core-v0 after baseline-4.
+
+## ASR-001 — proper noun mis-heard at the source ("Casey Muratori" → "Murata")
+
+- Heard as "Muriati" in every gb-fr dub. Trace: Qwen3-ASR transcribed "Murata"; translation kept it faithfully; TTS said it. Not a translation regression. The job glossary (term → pronunciation on the spoken text) is the designed user input for names; suites now pass a per-clip `glossary` (gb clips: Murata → Muratori). General fix for the ASR track: proper-noun recovery (second-ASR vote or on-screen text) — open.

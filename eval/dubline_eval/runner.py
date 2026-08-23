@@ -58,7 +58,7 @@ def submit_suite(suite: dict, server: str, poll: float = 20.0) -> dict[str, str]
                    "subtitle_mode": clip.get("subtitle_mode", "speech"), "audio_mode": "separate", "engine": "indextts",
                    "emotion_mode": "auto", "workflow_mode": "automatic", "mastering_preset": clip.get("preset", "web"),
                    "range_start": clip.get("start"), "range_end": clip.get("end"), "voice_rights_confirmed": True,
-                   "glossary": {}, "delivery_dir": f"eval/{suite['name']}/{clip['id']}"}
+                   "glossary": clip.get("glossary") or {}, "delivery_dir": f"eval/{suite['name']}/{clip['id']}"}
         job = client.json("POST", "/api/jobs/local", {"path": clip["path"], "options": options})
         jobs[clip["id"]] = job["id"]
         print(f"{clip['id']} -> job {job['id']}", flush=True)
