@@ -80,9 +80,9 @@ def articulation_strength(out_series: list[dict], src_series: list[dict], dub_sp
     import numpy as np
     def std(series, intervals):
         vals = [r.get("inner") for r in series if r.get("inner") is not None and any(a <= r["t"] <= b for a, b in intervals)]
-        return float(np.std(vals)) if len(vals) > 5 else None
+        return float(np.std(vals)) if len(vals) >= 20 else None
     o, s = std(out_series, dub_speech), std(src_series, src_speech)
-    return round(o / s, 3) if o is not None and s else None
+    return round(o / s, 3) if o is not None and s is not None and s > 0.005 else None
 
 
 def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
