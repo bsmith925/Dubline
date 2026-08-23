@@ -160,9 +160,12 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
         sync = {}
         # Score A/V sync on every lip-synced cue (on its crop when one was used, so SyncNet sees
         # the active face) plus single-face cues that were not lip-synced (reference).
-        if runtimes.get("syncnet_repo") and end - start >= 1.0 and (
+        if runtimes.get("syncnet_repo") and end - start >= 0.6 and (
                 lipsync_applied or (cue.get("mouth_visible") and visual.get("visible_faces") == 1)):
-            sync = score_interval(job_dir / "dubbed-english.mkv", job_dir / "selected-source.mkv", start, end - start,
+            # SyncNet needs ~3 s of face track: score short cues on a centred window with context.
+            win = max(3.0, end - start)
+            w_start = max(0.0, start - (win - (end - start)) / 2)
+            sync = score_interval(job_dir / "dubbed-english.mkv", job_dir / "selected-source.mkv", w_start, win,
                                   work / "sync", runtimes["syncnet_repo"], runtimes["musetalk"], f"u{int(cue['id']):03d}",
                                   crop=crop_box if lipsync_applied else None)
         so, ss = sync.get("output", {}), sync.get("source", {})
