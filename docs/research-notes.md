@@ -26,3 +26,14 @@
 
 ## To read next
 - Lip-sync generation beyond LatentSync (quality/resolution), dubbing quality evaluation (subjective protocols), AV-sync metrics beyond SyncNet, expressive S2S dubbing (VideoDubber, StreamSpeech-style), face-restoration for renderer blur.
+
+## Evaluation (harness upgrades)
+- **PEAVS** (from IWSLT 2024 findings, arXiv:2411.05088): perceptual AV-sync metric on a 5-point scale, *trained on human judgments* of in-the-wild videos — the human-grounded sync metric the reviewer asked for; candidate to sit beside SyncNet (LSE-C is model-confidence, not perception).
+- **UTMOS / NISQA** (torch.hub `tarepan/SpeechMOS` utmos22_strong; github.com/gabrielmittag/NISQA): no-reference naturalness MOS predictors for synthesized speech. Adopt as per-take `naturalness_mos` in the harness — automatic proxy for "sounds better", to be validated against Brad's calibration scores.
+- **SRC** (Length-Aware ST for Video Dubbing, Interspeech 2025): % of takes within 20 % speech-rate variance — near-free from our data.
+- **BLASER 2.0-QE**: reference-free speech translation quality — candidate second opinion beside the LLM judge.
+- **VideoDubber** (arXiv:2211.16934): MT with speech-length control using speech duration (not characters) as target — supports our measured-duration selection; their length control is at decode time.
+- **Movie dubbing with director-actor interaction** (arXiv:2511.14249): retrieval-augmented expressive dubbing — relevant later for emotion/performance track.
+
+## Lip generation (blur / quality)
+- 2025-26 surveys put LatentSync 1.6 as the local quality baseline (matches our A/B), MuseTalk as the speed fallback; diffusion > GAN on detail. Renderer blur is a known ceiling of 256-crop-based models — our face-crop path (higher effective resolution) is aligned with practice; next options: larger-crop diffusion checkpoints or post-hoc face restoration.
