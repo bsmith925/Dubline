@@ -616,6 +616,15 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
         if not all(cue.get("utterance") for cue in cues):
             fragments = len(cues)
             cues = merge_into_utterances(cues)
+            if settings.entity_lexicon:
+                # EXP-ENTITY-001: names as a program-level object — consensus spelling across
+                # all mentions (glossary/metadata as evidence), transcript rewritten before translation.
+                from app.services.entities import build_lexicon, canonicalize_cues, write_lexicon
+                lexicon = build_lexicon(cues, options.get("glossary") or {}, metadata_text=str(original_source.stem).replace("-", " ").replace("_", " "))
+                rewrites = canonicalize_cues(cues, lexicon)
+                write_lexicon(lexicon, folder / "entity-lexicon.json")
+                log(f"Title lexicon: {len(lexicon['entries'])} entit(y/ies), {rewrites} mention(s) canonicalized"
+                    + ("; " + ", ".join(f"{e['canonical']}←{'/'.join(e['aliases'])}" for e in lexicon["entries"] if e["aliases"])[:300] if rewrites else ""))
             update(37.05, "Measuring source rhythm, pitch, pauses, and position per utterance")
             analyze_performance(reference_audio, cues, film_mix if audio_mode == "separate" else source)
             measure_dialogue_leakage(cues, reference_audio, background_stem)
