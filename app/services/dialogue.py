@@ -204,8 +204,17 @@ FILLER_TOKENS = {
 
 
 def is_nonverbal_filler(text: str) -> bool:
-    """True for a cue that is only hesitation sounds; such lines keep the original performance."""
+    """True for a cue that is only hesitation sounds — or an ASR junk fragment with no lexical
+    content (e.g. a lone "S"): translating junk invents content (TRANS-002, judge adequacy 0),
+    so such lines keep the original performance instead."""
     import re
+    stripped = str(text).strip()
+    alpha = re.findall(r"[^\W\d_]", stripped, re.UNICODE)
+    if len(alpha) < 2:
+        return bool(stripped)                    # empty stays non-filler (handled elsewhere)
+    single = re.findall(r"[^\W\d_]+", stripped, re.UNICODE)
+    if len(single) == 1 and len(single[0]) <= 3 and not re.search(r"[aeiouyàáâäèéêëìíîïòóôöùúûü]", stripped.lower()):
+        return True
     tokens = [t for t in re.split(r"[\s,.!?…、。！？]+", str(text).lower()) if t]
     return bool(tokens) and len(tokens) <= 3 and all(t.strip("-") in FILLER_TOKENS for t in tokens)
 
