@@ -63,15 +63,26 @@ def _untranslated_rate(source: str, target: str, target_language: str) -> float 
 
 def _crop_articulation(job_dir: Path, box: list, start: float, end: float, runtimes: dict, fps: float, work: Path, cue_id: int):
     x, y, side = [int(v) for v in box]
-    out = []
+    out = []; series_out = []
     for name, video in (("output", job_dir / "dubbed-english.mkv"), ("source", job_dir / "selected-source.mkv")):
         clip = work / f"crop-{name}-{cue_id:03d}.mp4"
         if not clip.is_file():
             subprocess.run(["ffmpeg", "-y", "-v", "error", "-accurate_seek", "-ss", f"{start:.3f}", "-i", str(video), "-t", f"{end - start:.3f}",
                             "-an", "-vf", f"crop={side}:{side}:{x}:{y}", "-c:v", "libx264", "-crf", "18", str(clip)], check=True, capture_output=True)
         series = mouth_series(clip, runtimes["musetalk"], end - start, fps, work / f"crop-{name}-{cue_id:03d}-mouth.json")
+        series_out.append([{**r, "t": r["t"] + start} for r in series])
         out.append([[a + start, b + start] for a, b in articulation_intervals(series)])
-    return out[0], out[1]
+    return out[0], out[1], series_out[0], series_out[1]
+
+
+def articulation_strength(out_series: list[dict], src_series: list[dict], dub_speech, src_speech) -> float | None:
+    """Std of the inner-lip aperture during speech, output / source (1.0 = articulates as much as the actor)."""
+    import numpy as np
+    def std(series, intervals):
+        vals = [r.get("inner") for r in series if r.get("inner") is not None and any(a <= r["t"] <= b for a, b in intervals)]
+        return float(np.std(vals)) if len(vals) > 5 else None
+    o, s = std(out_series, dub_speech), std(src_series, src_speech)
+    return round(o / s, 3) if o is not None and s else None
 
 
 def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
@@ -130,9 +141,12 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
         if crop_box and q.get("visual_lipsync") and end - start >= 0.5:
             # The whole-frame mouth tracker misses small / secondary faces: track the crop the
             # renderer used, on both output and source, for this cue.
-            span_out_artic, span_src_artic = _crop_articulation(job_dir, crop_box, start, end, runtimes, mouth_fps, work, int(cue["id"]))
+            span_out_artic, span_src_artic, cue_out_series, cue_src_series = _crop_articulation(job_dir, crop_box, start, end, runtimes, mouth_fps, work, int(cue["id"]))
+        else:
+            cue_out_series = [r for r in out_mouth if start <= r["t"] <= end]; cue_src_series = [r for r in src_mouth if start <= r["t"] <= end]
         ls = lipsync.get(int(cue["id"]))
         lipsync_applied = bool(q.get("visual_lipsync"))
+        artic_strength = articulation_strength(cue_out_series, cue_src_series, span_dub_speech, span_src_speech) if lipsync_applied else None
         lipsync_interval = [round(max(0.0, start - 0.12), 3), round(max(0.0, start - 0.12) + (ls["rendered"] or 0), 3)] if ls and ls.get("rendered") else None
         if q.get("visual_lipsync_interval"):
             lipsync_interval = [float(v) for v in q["visual_lipsync_interval"]]
@@ -198,6 +212,7 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
                 source_residual_under_take_db=resid.get("max_window_db"),
                 source_residual_seconds_above_50db=resid.get("seconds_above_-50db"),
                 mouth_motion_on_silence=motion_on_silence, speech_on_static_mouth=speech_on_static,
+                articulation_strength=artic_strength,
                 coverage_articulation=round(coverage, 3) if coverage is not None else None,
                 identity_similarity_delta=None,
                 aperture_ratio=(round(mean_aperture(out_mouth, start, end) / mean_aperture(src_mouth, start, end), 3)

@@ -150,6 +150,8 @@ class Settings(BaseSettings):
     lipsync_extent: Literal["utterance", "voiced"] = "utterance"
     # VIDEO-007: lip-sync the dominant face track on a crop around it (multi-face shots, PiP).
     lipsync_face_crop: bool = True
+    # VIDEO-008: LatentSync classifier-free guidance (1.5 = upstream default; higher = stronger lip motion).
+    latentsync_guidance_scale: float = 1.5
     # EXP-TIMING-001: for poorly fitting takes, voice the adapter's candidates and pick by MEASURED duration.
     dub_select_by_measured_duration: bool = True
     # EXP-TRANS-001: translate one line per call (scene as context) instead of a 12-line batch.

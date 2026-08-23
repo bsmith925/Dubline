@@ -194,7 +194,7 @@ def apply_selective_lipsync(source: Path, cues: list[dict], dialogue_dir: Path, 
                                 "-c:v", "libx264", "-crf", "14", "-pix_fmt", "yuv420p", str(model_input)], check=True)
             command = [str(runtime), "-m", "scripts.inference", "--unet_config_path", "configs/unet/stage2_512.yaml",
                        "--inference_ckpt_path", "checkpoints/latentsync_unet.pt", "--inference_steps", "20",
-                       "--guidance_scale", "1.5", "--seed", "1247", "--video_path", str(model_input), "--audio_path", str(audio),
+                       "--guidance_scale", f"{settings.latentsync_guidance_scale:g}", "--seed", "1247", "--video_path", str(model_input), "--audio_path", str(audio),
                        "--video_out_path", str(rendered)]
             ok, tail = _run(command, repo, checkpoint)
             generated = rendered
