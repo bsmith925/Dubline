@@ -162,6 +162,8 @@ class Settings(BaseSettings):
     adapter_language_rates: bool = False
     # EXP-TIMING-003: measure alternative phrasings for every take, not only poorly fitting ones.
     dub_measure_all_takes: bool = True
+    # EXP-TIMING-004: cues that will be lip-synced get the generous (off-screen) slack, since the mouth is re-rendered.
+    dub_lipsync_slack: bool = False
     latentsync_repo: Path = Path("vendor/LatentSync")
     latentsync_runtime: Path = Path("vendor/latentsync-env")
 

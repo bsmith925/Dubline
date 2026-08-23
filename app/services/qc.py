@@ -416,7 +416,11 @@ def evaluate_media_qc(media: dict, mastering: dict) -> list[str]:
                     f"the dub track true peak is {float(measured_peak):.1f} dBTP, above its delivery limit"
                 )
             target_lufs = mastering.get("target_lufs")
-            if target_lufs is not None and abs(float(measured_lufs) - float(target_lufs)) > 1.5:
+            # peak_safe mastering deliberately stops short of the target when reaching it would
+            # limit speech peaks (MIX-003); the record says so and names the expected loudness.
+            expected = mastering.get("expected_lufs") if mastering.get("gain_limited_by_peak") else None
+            reference = float(expected) if expected is not None else (float(target_lufs) if target_lufs is not None else None)
+            if reference is not None and abs(float(measured_lufs) - reference) > 1.5:
                 failures.append(
                     f"the dub track loudness is {float(measured_lufs):.1f} LUFS, outside the delivery target"
                 )

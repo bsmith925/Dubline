@@ -733,7 +733,15 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
             # barely when it is visible. Placement never overlaps the next cue.
             next_start = float(cues[index + 1]["start"]) if index + 1 < len(cues) else float("inf")
             gap = max(0.0, next_start - float(cue["end"]) - 0.15)
-            slack_cap = cue_seconds * (0.12 if cue.get("mouth_visible") else 0.45)
+            visual_evidence = cue.get("visual_speaker") or {}
+            will_be_lipsynced = bool(cue.get("mouth_visible")) and (
+                visual_evidence.get("visible_faces") == 1 or bool(visual_evidence.get("active_face_box")))
+            if settings.dub_lipsync_slack and will_be_lipsynced:
+                # EXP-TIMING-004: a mouth that will be re-rendered may spill into the following
+                # silence like an off-screen one; only an untouched visible mouth needs tight slack.
+                slack_cap = cue_seconds * 0.45
+            else:
+                slack_cap = cue_seconds * (0.12 if cue.get("mouth_visible") else 0.45)
             target = cue_seconds + min(gap, slack_cap)
             cue["target_seconds"] = round(target, 3)
             if not reference.exists():
