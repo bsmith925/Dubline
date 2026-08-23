@@ -21,3 +21,4 @@
 {"id":"EXP-TIMING-003","variable":"DUB_MEASURE_ALL_TAKES false->true","clip":"trans-001","metric":"fill p50 gb-fr / stretch p90 tos-lab","before":"77 / 19.7","after":"86 / 0.0","regressions":"wall x1.1-2.1; tos-lab fill p10 64->54","decision":"keep (quality point; flag = compute knob)"}
 {"id":"EXP-VIDEO-008","variable":"LATENTSYNC_GUIDANCE_SCALE 1.5->2.5","clip":"core-v0","metric":"LSE-C / articulation","before":"n/a","after":"n/a","regressions":"run invalid (setting absent on server)","decision":"re-run"}
 {"id":"EXP-MIX-006","variable":"DUB_MATCH_SOURCE_BALANCE off->on","clip":"trans-001","metric":"bed_ratio_delta_db","before":"n/a","after":"n/a","regressions":"run invalid (setting absent on server)","decision":"re-run"}
+{"id":"EXP-VIDEO-008","variable":"LATENTSYNC_GUIDANCE_SCALE 1.5->2.5","clip":"core-v0","metric":"LSE-C mean / aperture_ratio","before":"5.25 / 0.94","after":"5.96 / 1.04","regressions":"mouth_motion_on_silence 1.47->1.65 s","decision":"keep"}
