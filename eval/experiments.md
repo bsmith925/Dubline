@@ -225,3 +225,9 @@ Top-5 failure modes after baseline-3 (by tails):
 | charade-embassy-fr | 1.0 | – | 0.54 (United States…) | 1.0 |
 
 Known v0 weaknesses: no punctuation in ASR output → some sentence-initial false positives ("Unfortunately", "Use"); possessives. Next: proper NER (spaCy multilingual) and the title-lexicon builder (EXP-ENTITY-001) measured by consistency → 1.0 and TTS-pronunciation losses → 0.
+
+## INCIDENT 2026-08-23 — server checkout silently stale (three runs invalid)
+
+- Offline tests copied files into the server's working tree; `git pull -q` then refused to merge (untracked `entities.py`) and the queue scripts ignored the exit code. Server stayed at `e76a590` from 01:38 UTC.
+- Invalid: **VIDEO-008** (`070236-core-v0`, guidance setting absent → identical to baseline: LSE-C 5.25 → 5.17) and **MIX-006** (`083838-trans-001`, setting absent → no corrections). **Baseline-4** (`045814-core-v1`) ran without TIMING-003's default; its stretch p90 regression (5.8 → 19.8 %) is the VIDEO-007 × slack-policy interaction (more `mouth_visible` cues → 12 % slack and 5 % limit → shorter targets → retries still over → compression), plus sub-second cues; its 4 delivery-QC failures are peak-safe loudness (−18.4…−19.4 LUFS) vs a check that did not read the mastering record — fixed.
+- Fixes: working tree cleaned and pulled (`6f1e28d`); queue scripts now abort loudly on pull failure and print the commit they run; test copies go to /tmp only. Re-queued VIDEO-008 and MIX-006, then EXP-TIMING-004 (`DUB_LIPSYNC_SLACK`) on core-v1.
