@@ -113,6 +113,8 @@ class VisualMetrics:
     speech_on_static_mouth: float | None        # seconds of target speech while mouth is static
     articulation_strength: float | None         # aperture std during speech, output / source (lip-synced cues)
     naturalness_mos: float | None               # UTMOS no-reference MOS (1-5) of the fitted take
+    pause_sa: bool | None                       # take has the same phrase/pause count as the source utterance
+    phrase_duration_compliance: bool | None     # every target phrase within tolerance of its source phrase duration
     coverage_articulation: float | None         # target-speech time overlapping source articulation / source articulation time
     identity_similarity_delta: float | None     # face embedding before vs after edit
     aperture_ratio: float | None                # mean output aperture / mean source aperture in the interval
