@@ -215,8 +215,8 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
                 articulation_strength=artic_strength,
                 coverage_articulation=round(coverage, 3) if coverage is not None else None,
                 identity_similarity_delta=None,
-                aperture_ratio=(round(mean_aperture(out_mouth, start, end) / mean_aperture(src_mouth, start, end), 3)
-                                if lipsync_applied and mean_aperture(src_mouth, start, end) and mean_aperture(out_mouth, start, end) else None)),
+                aperture_ratio=(round(mean_aperture(cue_out_series, start, end) / mean_aperture(cue_src_series, start, end), 3)
+                                if lipsync_applied and mean_aperture(cue_src_series, start, end) and mean_aperture(cue_out_series, start, end) else None)),
             system=SystemMetrics(retries=max(0, int(q.get("tts_attempts") or 1) - 1)),
             flags=list(cue.get("review_reasons") or []),
         ))
