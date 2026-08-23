@@ -70,3 +70,4 @@ venv.bak/
 .vscode/
 *.wav
 *.webm
+STATUS.md
