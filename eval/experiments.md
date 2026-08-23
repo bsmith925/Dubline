@@ -206,3 +206,9 @@ Top-5 failure modes after baseline-3 (by tails):
 
 - Listener feedback: every MIX-005 variant beat "current", but a preference is the wrong question; the invariant is the source's own dialogue-to-bed balance. `match_source_balance`: per cue, K-weighted (voice − bed) in the output vs (dialogue − bed) in the source over the same span; bounded ±8 dB correction on the voice stem with 30 ms smoothing; a user offset can sit on top later.
 - Offline on the MIX-004 tos-lab job: corrections +1.75…+3.67 dB (median +2.3) on 13 cues; harness `bed_ratio_delta_db` −3.39 → −1.82, d2b SNR −1.9 → −0.3, LUFS unchanged, no clipping. Residual reflects the harness metric being RMS-in-mix (with ducking) vs the K-weighted stem ratio — to reconcile so the target is exactly 0. Queued on trans-001 after VIDEO-008 (`DUB_MATCH_SOURCE_BALANCE=true`). MKVs: ~/Downloads/dubline/mix-006-ab/.
+
+## ASR-001 characterization — proper nouns across core-v1 (baseline-3 transcripts vs Whisper turbo, greedy and beam-5)
+
+- 216 capitalized tokens; 66 not confirmed by Whisper (many are sentence-initial false positives of the crude filter). Real disagreements: the same name spelled several ways by the SAME recognizer within a film — Lampert/Lampard/Lombard/Lampeth, Voss/Vasse's, Scobie/Scoby, Celia/"Luxilio"; gingerBill: "Moritore" (cue 1) vs "Muratori" (cue 3) vs "Murata" (other runs). Whisper: Muratari/Muratore, GingerBell/Gingerbill.
+- Greedy vs beam-5 (Whisper): no systematic gain on names; beam better on casing/punctuation. OOV names need candidates/consensus, not decoding changes.
+- → ASR-002 plan: film-level name consistency pass (cluster capitalized tokens from both recognizers by phonetic key + edit distance; consensus spelling; rewrite before translation). Metrics: spellings per cluster (Lampert 4 → 1), cross-recognizer name agreement; glossary/on-screen text as optional extra votes.
