@@ -201,3 +201,8 @@ Top-5 failure modes after baseline-3 (by tails):
 ## ASR-001 — proper noun mis-heard at the source ("Casey Muratori" → "Murata")
 
 - Heard as "Muriati" in every gb-fr dub. Trace: Qwen3-ASR transcribed "Murata"; translation kept it faithfully; TTS said it. Not a translation regression. The job glossary (term → pronunciation on the spoken text) is the designed user input for names; suites now pass a per-clip `glossary` (gb clips: Murata → Muratori). General fix for the ASR track: proper-noun recovery (second-ASR vote or on-screen text) — open.
+
+## MIX-006 — replicate the source's voice-over-bed balance (no preference to pick)
+
+- Listener feedback: every MIX-005 variant beat "current", but a preference is the wrong question; the invariant is the source's own dialogue-to-bed balance. `match_source_balance`: per cue, K-weighted (voice − bed) in the output vs (dialogue − bed) in the source over the same span; bounded ±8 dB correction on the voice stem with 30 ms smoothing; a user offset can sit on top later.
+- Offline on the MIX-004 tos-lab job: corrections +1.75…+3.67 dB (median +2.3) on 13 cues; harness `bed_ratio_delta_db` −3.39 → −1.82, d2b SNR −1.9 → −0.3, LUFS unchanged, no clipping. Residual reflects the harness metric being RMS-in-mix (with ducking) vs the K-weighted stem ratio — to reconcile so the target is exactly 0. Queued on trans-001 after VIDEO-008 (`DUB_MATCH_SOURCE_BALANCE=true`). MKVs: ~/Downloads/dubline/mix-006-ab/.
