@@ -212,3 +212,16 @@ Top-5 failure modes after baseline-3 (by tails):
 - 216 capitalized tokens; 66 not confirmed by Whisper (many are sentence-initial false positives of the crude filter). Real disagreements: the same name spelled several ways by the SAME recognizer within a film — Lampert/Lampard/Lombard/Lampeth, Voss/Vasse's, Scobie/Scoby, Celia/"Luxilio"; gingerBill: "Moritore" (cue 1) vs "Muratori" (cue 3) vs "Murata" (other runs). Whisper: Muratari/Muratore, GingerBell/Gingerbill.
 - Greedy vs beam-5 (Whisper): no systematic gain on names; beam better on casing/punctuation. OOV names need candidates/consensus, not decoding changes.
 - → ASR-002 plan: film-level name consistency pass (cluster capitalized tokens from both recognizers by phonetic key + edit distance; consensus spelling; rewrite before translation). Metrics: spellings per cluster (Lampert 4 → 1), cross-recognizer name agreement; glossary/on-screen text as optional extra votes.
+
+## ENTITY baseline (core-v1 baseline-3 transcripts, v0 detector: capitalized non-sentence-initial tokens, phonetic clusters)
+
+| clip | consistency | inconsistent clusters | translation preservation | TTS pronunciation (lost) |
+|---|---|---|---|---|
+| gb-talking-head-fr | 0.80 | Moritore/Muratori | 0.94 | 1.0 |
+| gb-es-roundtrip-en | 0.75 | (false positive) | 0.81 (Martin lost in cue 3) | 0.94 (Inger ← GingerBill) |
+| tos-thom-celia-fr | – | – | 1.0 | 0.0 (Celia → "Luxilio") |
+| charade-hotel-banter-fr | 0.80 | Lambert/Lampert | 0.67 (Charles lost, cue 14) | 0.75 (Joshua, Pete) |
+| charade-office-es | 0.00 | Charles/Charles's · Voss/Vasse's · Lampard/Lampert/Lombard | 0.85 | 0.80 (Gideon, Vasse, Voss) |
+| charade-embassy-fr | 1.0 | – | 0.54 (United States…) | 1.0 |
+
+Known v0 weaknesses: no punctuation in ASR output → some sentence-initial false positives ("Unfortunately", "Use"); possessives. Next: proper NER (spaCy multilingual) and the title-lexicon builder (EXP-ENTITY-001) measured by consistency → 1.0 and TTS-pronunciation losses → 0.
