@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import queue
 import copy
 import csv
@@ -380,6 +381,13 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                     "speaker names remain confidence-gated until mouth and voice evidence agree")
         else:
             log("Whole-film face registry was unavailable; audio-only speaker mapping remains active")
+
+        seed_job = str(options.get("seed_from_job") or "").strip()
+        if seed_job and not (folder / "seeded-from.json").is_file():
+            seed_tier = str(options.get("seed_tier") or "translation")
+            copied = seed_from_job(folder, folder.parent / seed_job, seed_tier)
+            (folder / "seeded-from.json").write_text(json.dumps({"job": seed_job, "tier": seed_tier, "items": copied}))
+            log(f"Seeded {copied} upstream artifact(s) from job {seed_job} (tier: {seed_tier}); those stages are reused, not re-run")
 
         audio_mode = options.get("audio_mode", "separate")
         background_stem: Path | None = None
@@ -1700,6 +1708,55 @@ def build_adaptive_background(film_mix: Path, background: Path, cues: list[dict]
         cue["background_source"] = f"film mix minus {name}"
     sf.write(output, bed, rate, subtype="PCM_24")
     return replaced
+
+
+SEED_COMMON = ["selected-source.mkv", "working-soundtrack-48k.flac", "cinema-dialogue.flac", "cinema-background.flac",
+               "cinema-background-adaptive.flac", "cinema-background-separated.flac", "recovery-vocals.flac", "roformer-vocals.flac",
+               "dialogue-primary-24k.flac", "dialogue-recovery-24k.flac", "dialogue-roformer-24k.flac", "dialogue-adaptive-24k.flac",
+               "asr-dialogue-map.json", "asr-dialogue-map-primary.json", "media-fingerprint.json", "language-id.json",
+               "visual-speaker-analysis.json", "visual-speaker-cues.json", "face-registry.json", "entity-lexicon.json",
+               "references", "emotion-references", "speaker-references", "full-film-speaker-registry", "asr-windows", "language-id"]
+SEED_STRIP = {
+    # tier "asr": reuse media/separation/ASR/speakers; re-run translation onward
+    "asr": {"english", "adapted_dialogue", "literal_translation", "faithful_translation", "translation_is_target",
+            "translation_was_supplied", "faithful_translation", "translation_model", "translation_candidates",
+            "candidate_semantic_scores", "adaptation_scoring", "adaptation_confidence", "adaptation_attempts",
+            "adaptation_model", "force_adaptation", "too_short", "translation_qc", "target_seconds",
+            "spoken_text", "status", "audio", "qc", "acoustic_match", "review_reasons", "needs_review"},
+    # tier "translation": reuse everything through translation + QC; re-run synthesis onward
+    "translation": {"spoken_text", "status", "audio", "qc", "acoustic_match", "target_seconds", "review_reasons", "needs_review"},
+}
+
+
+def seed_from_job(folder: Path, seed_folder: Path, tier: str) -> int:
+    """Hardlink upstream artifacts of a finished job so this job re-runs only downstream stages."""
+    import shutil
+    if not seed_folder.is_dir():
+        raise RuntimeError(f"Seed job folder missing: {seed_folder}")
+    strip = SEED_STRIP.get(tier)
+    if strip is None:
+        raise RuntimeError(f"Unknown seed tier: {tier}")
+    copied = 0
+    for name in SEED_COMMON:
+        src = seed_folder / name
+        dst = folder / name
+        if dst.exists() or not src.exists():
+            continue
+        if src.is_dir():
+            shutil.copytree(src, dst, copy_function=os.link)
+        else:
+            os.link(src, dst)
+        copied += 1
+    seed_cues = seed_folder / "cues.json"
+    if seed_cues.is_file() and not (folder / "cues.json").is_file():
+        cues = json.loads(seed_cues.read_text(encoding="utf-8"))
+        for cue in cues:
+            for key in list(cue):
+                if key in strip:
+                    del cue[key]
+        (folder / "cues.json").write_text(json.dumps(cues, indent=2, ensure_ascii=False), encoding="utf-8")
+        copied += 1
+    return copied
 
 
 def probe_stream_starts(path: Path) -> list[float]:

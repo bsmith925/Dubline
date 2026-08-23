@@ -6,8 +6,13 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 SUITE="$1"; NOTES="$2"; shift 2
 cp .env .env.experiment-backup
+SEED_ARGS=()
 for kv in "$@"; do
     key="${kv%%=*}"
+    case "$key" in
+        SEED_BUNDLE) SEED_ARGS+=(--seed-bundle "${kv#*=}"); continue;;
+        SEED_TIER)   SEED_ARGS+=(--seed-tier "${kv#*=}"); continue;;
+    esac
     if grep -q "^${key}=" .env; then sed -i "s|^${key}=.*|${kv}|" .env; else echo "$kv" >> .env; fi
 done
 systemctl --user restart dubline; sleep 5
@@ -19,4 +24,4 @@ for j in json.load(sys.stdin):
         curl -s -X POST "http://127.0.0.1:8000/api/jobs/$id/control/cancel" >/dev/null; done
 }
 trap 'cancel_jobs; cp .env.experiment-backup .env; systemctl --user restart dubline' EXIT
-vendor/index-tts/.venv/bin/python -m eval.dubline_eval.cli run --suite "$SUITE" --notes "$NOTES"
+vendor/index-tts/.venv/bin/python -m eval.dubline_eval.cli run --suite "$SUITE" --notes "$NOTES" "${SEED_ARGS[@]}"

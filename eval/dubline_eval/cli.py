@@ -24,6 +24,8 @@ def main() -> None:
     r.add_argument("--out", type=Path, default=ROOT / "eval" / "runs")
     r.add_argument("--jobs", nargs="*", default=[], help="clip_id=job_id pairs for already finished jobs")
     r.add_argument("--notes", default="")
+    r.add_argument("--seed-bundle", type=Path, default=None, help="reuse upstream job artifacts from this bundle's jobs")
+    r.add_argument("--seed-tier", default="translation", choices=["asr", "translation"])
     r.add_argument("--mouth-fps", type=float, default=15.0)
     r.add_argument("--musetalk-runtime", type=Path, default=ROOT / "vendor/musetalk-env/bin/python")
     r.add_argument("--main-runtime", type=Path, default=ROOT / "vendor/index-tts/.venv/bin/python")
@@ -39,7 +41,8 @@ def main() -> None:
         run(args.suite, args.server, args.jobs_root, args.out,
             {"musetalk": args.musetalk_runtime, "main": args.main_runtime, "whisper_cache": args.whisper_cache,
              "syncnet_repo": args.syncnet_repo if (args.syncnet_repo / "run_syncnet.py").is_file() else None},
-            job_ids=jobs, notes=args.notes, mouth_fps=args.mouth_fps)
+            job_ids=jobs, notes=args.notes, mouth_fps=args.mouth_fps,
+            seed_bundle=args.seed_bundle, seed_tier=args.seed_tier)
     else:
         from .compare import compare
         text = compare(args.baseline, args.candidate)
