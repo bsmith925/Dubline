@@ -106,3 +106,32 @@ def mastering_effect(premaster: Path, final_mix: Path, dub_speech: list[list[flo
     g_rest = _db(gather(out, rest)) - _db(gather(pm, rest))
     return {"master_gain_speech_db": round(g_speech, 2), "master_gain_rest_db": round(g_rest, 2),
             "master_dialogue_squash_db": round(g_speech - g_rest, 2)}
+
+
+def balance_vs_source(cues: list[dict], voice_stem: Path, source_dialogue: Path, bed: Path, t_end: float) -> dict:
+    """Per cue: (voice − bed) in the output minus (dialogue − bed) in the source, K-weighted on the
+    stems (the quantity MIX-006 corrects). 0 = the dub sits over the bed exactly like the original."""
+    import soundfile as sf
+    from scipy.signal import butter, sosfilt
+    def kdb(x, rate):
+        y = sosfilt(butter(2, 38.0 / (rate / 2), "high", output="sos"), x)
+        low = sosfilt(butter(1, 1500.0 / (rate / 2), "low", output="sos"), y)
+        y = low + (y - low) * 1.58
+        return float(20 * np.log10(np.sqrt(np.mean(y * y) + 1e-12) + 1e-9))
+    v, vr = sf.read(voice_stem, dtype="float32", always_2d=True); v = v.mean(axis=1)
+    d, dr = sf.read(source_dialogue, dtype="float32", always_2d=True); d = d.mean(axis=1)
+    b, br = sf.read(bed, dtype="float32", always_2d=True); b = b.mean(axis=1)
+    deltas = []
+    for cue in cues:
+        if cue.get("nonverbal_filler"):
+            continue
+        s, e = float(cue["start"]), float(cue["end"])
+        if e - s < 0.3 or s >= t_end:
+            continue
+        sv = v[int(s * vr):int(e * vr)]; sd = d[int(s * dr):int(e * dr)]; sb = b[int(s * br):int(e * br)]
+        if len(sv) < 0.3 * vr or float(np.max(np.abs(sv))) < 1e-4 or len(sd) < 0.3 * dr or float(np.max(np.abs(sd))) < 1e-4 or kdb(sb, br) < -60:
+            continue
+        deltas.append((kdb(sv, vr) - kdb(sb, br)) - (kdb(sd, dr) - kdb(sb, br)))
+    if not deltas:
+        return {}
+    return {"balance_vs_source_median_db": round(float(np.median(deltas)), 2), "balance_vs_source_p90_abs_db": round(float(np.percentile(np.abs(deltas), 90)), 2), "balance_cues": len(deltas)}

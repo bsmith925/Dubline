@@ -255,6 +255,12 @@ def evaluate(job_dir: Path, clip_id: str, runtimes: dict[str, Path], work: Path,
                            source_me=(job_dir / "cinema-background-adaptive.flac" if (job_dir / "cinema-background-adaptive.flac").is_file() else job_dir / "cinema-background.flac"),
                            source_dialogue=job_dir / "cinema-dialogue.flac")
               if (job_dir / "english-mix.flac").is_file() else {})
+    voice_used = job_dir / "english-dialogue-balanced.flac" if (job_dir / "english-dialogue-balanced.flac").is_file() else job_dir / "english-dialogue.flac"
+    src_dlg = job_dir / "dialogue-adaptive-24k.flac" if (job_dir / "dialogue-adaptive-24k.flac").is_file() else job_dir / "cinema-dialogue.flac"
+    bed_used = job_dir / "cinema-background-adaptive.flac" if (job_dir / "cinema-background-adaptive.flac").is_file() else job_dir / "cinema-background.flac"
+    if voice_used.is_file() and src_dlg.is_file() and bed_used.is_file():
+        from .metrics.mix import balance_vs_source
+        mixfid.update(balance_vs_source(cues, voice_used, src_dlg, bed_used, t_end))
     if (job_dir / "english-mix-premaster.flac").is_file() and (job_dir / "english-mix.flac").is_file():
         from .metrics.mix import mastering_effect
         mixfid.update(mastering_effect(job_dir / "english-mix-premaster.flac", job_dir / "english-mix.flac", dub_speech, t_end))
