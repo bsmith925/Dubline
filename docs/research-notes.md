@@ -37,3 +37,7 @@
 
 ## Lip generation (blur / quality)
 - 2025-26 surveys put LatentSync 1.6 as the local quality baseline (matches our A/B), MuseTalk as the speed fallback; diffusion > GAN on detail. Renderer blur is a known ceiling of 256-crop-based models — our face-crop path (higher effective resolution) is aligned with practice; next options: larger-crop diffusion checkpoints or post-hoc face restoration.
+
+## Face restoration for renderer blur (VIDEO-009 candidate)
+- Per-frame restorers (GFPGAN/CodeFormer) cause flicker on video; the 2024-25 line is temporally coherent video restoration: **PGTFormer** (parsing-guided temporal-coherent transformer, arXiv:2404.13640), **SVFR** (unified generalized video face restoration, 2025), **DicFace** (Dirichlet-constrained codebook, arXiv:2506.13355), **BFVR-STC** (arXiv:2411.16468), survey arXiv:2410.11828.
+- Adoption sketch: restore the rendered face crop (already isolated by VIDEO-007) before paste-back. Metrics: mouth sharpness ratio (0.62 → target ≥0.9), ArcFace identity, temporal flicker (existing jitter metric), boundary excess. Risk: identity drift, +GPU latency. Priority: after current queue + infra block; candidate to combine with the LTX-2.5 track decision (restoration may be the cheap alternative to a new renderer).
