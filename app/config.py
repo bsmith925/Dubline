@@ -141,6 +141,8 @@ class Settings(BaseSettings):
     # cinematic separator left out of its dialogue stem (voice otherwise plays under the dub).
     dub_adaptive_background: bool = True
     dub_duck_ratio: float = 2.0
+    # MIX-006: per-cue voice correction so voice-over-bed equals the source's dialogue-over-bed (K-weighted).
+    dub_match_source_balance: bool = False
     # EXP-AUDIO-003: mute the whole span of a re-voiced utterance, not only its aligned words.
     dub_mute_whole_utterance: bool = True
     # EXP-VIDEO-003: feed LatentSync an exact fps=25 clip instead of letting it run `ffmpeg -r 25`

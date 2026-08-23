@@ -1130,6 +1130,15 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
         checkpoint()
 
         mixed = folder / "english-mix.flac"
+        if settings.dub_match_source_balance and audio_mode == "separate" and background_stem and background_stem.is_file():
+            # MIX-006: replicate the source's voice-over-bed balance per cue instead of choosing one.
+            update(88.5, "Matching the source's dialogue-to-bed balance")
+            balanced = folder / "english-dialogue-balanced.flac"
+            balance = match_source_balance(cues, voice, balanced, reference_audio if reference_audio.is_file() else folder / "cinema-dialogue.flac",
+                                           background_stem, duration)
+            log(f"Source balance match: median correction {balance['median_db']:+.1f} dB over {balance['cues']} cue(s)"
+                f" (range {balance['min_db']:+.1f}…{balance['max_db']:+.1f})")
+            voice = balanced
         update(89, "Balancing dialogue with the source soundtrack")
         mastering = mix_audio(working_soundtrack, voice, mixed, duration, audio_mode, background_stem,
                               options.get("mastering_preset", "cinema"))
@@ -1579,6 +1588,58 @@ def write_silence(path: Path, seconds: float, rate: int = 24_000) -> None:
     import soundfile as sf
     path.parent.mkdir(parents=True, exist_ok=True)
     sf.write(path, np.zeros(max(1, round(seconds * rate)), dtype=np.float32), rate, subtype="PCM_16")
+
+
+def _k_weighted_level_db(x, rate: int) -> float:
+    """Approximate K-weighting (ITU-R BS.1770 pre-filter: +4 dB high shelf ~1.5 kHz, 38 Hz high-pass)."""
+    import numpy as np
+    from scipy.signal import butter, sosfilt
+    hp = butter(2, 38.0 / (rate / 2), "high", output="sos")
+    y = sosfilt(hp, x)
+    # simple high-shelf approximation: boost content above ~1.5 kHz by ~4 dB
+    lowpart = sosfilt(butter(1, 1500.0 / (rate / 2), "low", output="sos"), y)
+    y = lowpart + (y - lowpart) * 1.58
+    return float(20 * np.log10(np.sqrt(np.mean(y * y) + 1e-12) + 1e-9))
+
+
+def match_source_balance(cues: list[dict], voice: Path, output: Path, source_dialogue: Path, bed: Path, duration: float,
+                         limit_db: float = 8.0, min_seconds: float = 0.3) -> dict:
+    """Per cue, scale the dub voice so voice-over-bed (K-weighted) equals the source's
+    dialogue-over-bed over the same span. Correction bounded to ±limit_db, 30 ms crossfades."""
+    import numpy as np
+    import soundfile as sf
+    v, vr = sf.read(voice, dtype="float32", always_2d=True)
+    d, dr = sf.read(source_dialogue, dtype="float32", always_2d=True); d = d.mean(axis=1)
+    b, br = sf.read(bed, dtype="float32", always_2d=True); b = b.mean(axis=1)
+    corrections = []
+    gain = np.ones(len(v), dtype=np.float32)
+    for cue in cues:
+        if cue.get("nonverbal_filler"):
+            continue
+        s, e = float(cue["start"]), float(cue["end"])
+        if e - s < min_seconds:
+            continue
+        vs, ve = int(s * vr), min(len(v), int(e * vr))
+        seg_v = v[vs:ve].mean(axis=1)
+        if len(seg_v) < vr * min_seconds or float(np.max(np.abs(seg_v))) < 1e-4:
+            continue
+        src_d = d[int(s * dr):int(e * dr)]; src_b = b[int(s * br):int(e * br)]
+        if len(src_d) < dr * min_seconds or float(np.max(np.abs(src_d))) < 1e-4:
+            continue
+        bed_v = b[int(s * br):int(e * br)]
+        src_ratio = _k_weighted_level_db(src_d, dr) - _k_weighted_level_db(src_b, br)
+        out_ratio = _k_weighted_level_db(seg_v, vr) - _k_weighted_level_db(bed_v, br)
+        correction = float(np.clip(src_ratio - out_ratio, -limit_db, limit_db))
+        gain[vs:ve] = 10 ** (correction / 20)
+        cue.setdefault("qc", {})["balance_correction_db"] = round(correction, 2)
+        corrections.append(correction)
+    # smooth gain steps (30 ms) so corrections never click
+    k = max(1, int(0.03 * vr)); kernel = np.ones(k, dtype=np.float32) / k
+    gain = np.convolve(gain, kernel, mode="same").astype(np.float32)
+    out = np.clip(v * gain[:, None], -0.99, 0.99)
+    sf.write(output, out, vr, subtype="PCM_24")
+    return {"cues": len(corrections), "median_db": float(np.median(corrections)) if corrections else 0.0,
+            "min_db": float(min(corrections)) if corrections else 0.0, "max_db": float(max(corrections)) if corrections else 0.0}
 
 
 def build_adaptive_background(film_mix: Path, background: Path, cues: list[dict], output: Path,
