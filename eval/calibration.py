@@ -76,7 +76,13 @@ def snippet_metrics(snippet: Path, source_snippet: Path, work: Path) -> dict:
         if (ROOT / "vendor/syncnet_python/run_syncnet.py").is_file() else {}
     so = sync.get("output", {})
     ap_src, ap_out = mean_aperture(src_mouth, 0, dur), mean_aperture(mouth, 0, dur)
-    return {"duration": round(dur, 2), "dub_speech_s": A.total(dub), "speech_fraction": round(A.total(dub) / dur, 3),
+    try:
+        import sys as _sys; _sys.path.insert(0, str(ROOT))
+        from eval.dubline_eval.metrics.naturalness import naturalness_mos
+        mos = naturalness_mos(wav)
+    except Exception:
+        mos = None
+    return {"duration": round(dur, 2), "naturalness_mos": mos, "dub_speech_s": A.total(dub), "speech_fraction": round(A.total(dub) / dur, 3),
             "mouth_motion_on_silence_s": A.total(A.subtract(artic, dub)), "speech_on_static_mouth_s": A.total(A.subtract(dub, artic)),
             "coverage_articulation": round(A.total(A.intersect(dub, src_artic)) / A.total(src_artic), 3) if src_artic else None,
             "sync_lse_c": so.get("lse_c"), "sync_lse_d": so.get("lse_d"), "sync_offset_frames": so.get("offset_frames"),
@@ -91,6 +97,13 @@ def make(args) -> None:
     out = Path(args.out); work = out / "work"; work.mkdir(parents=True, exist_ok=True)
     rng = random.Random(args.seed)
     pairs = []
+    for clip_spec in (spec["clips"] if "clips" in spec else [spec]):
+        pairs += collect_pairs(clip_spec, work, rng)
+    finalize(pairs, out, work, rng, args)
+
+
+def collect_pairs(spec: dict, work: Path, rng) -> list:
+    pairs = []
     source = Path(spec["source"])
     for w in spec["windows"]:
         start, end, wid = w["start"], w["end"], w["id"]
@@ -104,9 +117,13 @@ def make(args) -> None:
             pairs.append((wid, a, rendered[a], b, rendered[b]))
         anchor = spec.get("degrade_system")
         if anchor in rendered:
-            for kind in DEGRADATIONS:
+            for kind in spec.get("degradations", list(DEGRADATIONS)):
                 d = degrade(rendered[anchor], kind, work / f"{anchor}+{kind}-{wid}.mp4")
                 pairs.append((wid, anchor, rendered[anchor], f"{anchor}+{kind}", d))
+    return pairs
+
+
+def finalize(pairs: list, out: Path, work: Path, rng, args) -> None:
     rng.shuffle(pairs)
     key, rows = [], []
     for n, (wid, sa, pa, sb, pb) in enumerate(pairs, 1):

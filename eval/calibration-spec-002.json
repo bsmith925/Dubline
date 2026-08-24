@@ -1,0 +1,79 @@
+{
+ "clips": [
+  {
+   "source": "/mnt/media/dubline/data/jobs/72d789a04fab/selected-source.mkv",
+   "windows": [
+    {
+     "id": "gb-w1",
+     "start": 1.0,
+     "end": 12.0
+    },
+    {
+     "id": "gb-w2",
+     "start": 32.0,
+     "end": 44.0
+    },
+    {
+     "id": "gb-w3",
+     "start": 59.0,
+     "end": 70.0
+    }
+   ],
+   "systems": {
+    "era-old": "/mnt/media/dubline/data/jobs/da259f657617/dubbed-english.mkv",
+    "era-new": "/mnt/media/dubline/data/jobs/72d789a04fab/dubbed-english.mkv"
+   },
+   "degrade_system": "era-new",
+   "degradations": [
+    "audio_offset_200ms",
+    "mouth_blur"
+   ]
+  },
+  {
+   "source": "/mnt/media/dubline/data/jobs/e0051ec61b3a/selected-source.mkv",
+   "windows": [
+    {
+     "id": "tos-w1",
+     "start": 25.0,
+     "end": 36.0
+    },
+    {
+     "id": "tos-w2",
+     "start": 44.0,
+     "end": 55.0
+    }
+   ],
+   "systems": {
+    "era-old": "/mnt/media/dubline/data/jobs/751aed49ca62/dubbed-english.mkv",
+    "era-new": "/mnt/media/dubline/data/jobs/e0051ec61b3a/dubbed-english.mkv"
+   },
+   "degrade_system": "era-new",
+   "degradations": [
+    "audio_speedup_30"
+   ]
+  },
+  {
+   "source": "/mnt/media/dubline/data/jobs/8f272b4dbbcb/selected-source.mkv",
+   "windows": [
+    {
+     "id": "ch-w1",
+     "start": 15.0,
+     "end": 26.0
+    },
+    {
+     "id": "ch-w2",
+     "start": 44.0,
+     "end": 55.0
+    }
+   ],
+   "systems": {
+    "era-old": "/mnt/media/dubline/data/jobs/09585a7c849e/dubbed-english.mkv",
+    "era-new": "/mnt/media/dubline/data/jobs/8f272b4dbbcb/dubbed-english.mkv"
+   },
+   "degrade_system": "era-new",
+   "degradations": [
+    "silence_gap_1500ms"
+   ]
+  }
+ ]
+}
