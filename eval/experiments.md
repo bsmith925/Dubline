@@ -249,3 +249,27 @@ Known v0 weaknesses: no punctuation in ASR output → some sentence-initial fals
 ## NOISE-FLOOR (repeated seeds) — planned
 
 Three identical trans-001 runs (same `DUB_SEED=1247`, same defaults, lip-sync off for speed). Deliverable: per-metric spread (max−min and stdev) across the three, published in `eval/pareto.md`. Rule adopted: **an experiment delta smaller than the noise floor of its metric cannot justify a keep or a revert** — such experiments must be re-run with more clips or a paired/seeded design. Metrics of interest: judge adequacy, word similarity, active-fill p10/p50, padding p90, stretch p90, naturalness MOS, entity metrics, dialogue-to-bed SNR, balance-vs-source.
+
+## NOISE-FLOOR results (3 identical trans-001 runs, seed 1247) — and the audit they force
+
+| metric | spread across identical runs |
+|---|---|
+| judge adequacy (mean) | 0.130 |
+| stretch % (mean) | 3.78 |
+| worst-clip stretch p90 | **23.4** |
+| active fill p10 / p50 | 7.9 / 3.2 |
+| dialogue-to-bed SNR | 2.95 dB |
+| padding ms (mean) | 90 |
+| speaker similarity | 0.016 |
+| naturalness MOS | 0.073 |
+| bed ratio delta | 0.21 dB |
+| balance vs source | 0.010 dB |
+| entity consistency | 0.000 |
+| wall time | 3 min |
+
+**Audit of prior decisions against these floors (honest corrections):**
+- **EXP-TIMING-004 — REVERTED (was "provisional keep").** Against the clean comparator reference-5 (`20260824-043951`, single variable): stretch mean 7.14 vs 5.80, p90 9.05 vs 8.73, padding 471 vs 434 ms, adequacy 0.885 vs 0.893, QC 10/10 both. Every delta is inside the noise floor. The stretch improvement I credited to slack in the provisional comparison came from the QC-loudness fix and TIMING-003 defaults present in that comparison, not from the variable. `DUB_LIPSYNC_SLACK=false`.
+- **EXP-TIMING-003 — keep STANDS, but on the fill metric only.** Its headline "tos-lab stretch p90 19.7 → 0" is *inside* the ±23.4 floor for worst-clip stretch p90 and must not be cited. The fill p50 gain (77 → 86, floor ±3.2) and the padding reduction survive.
+- **EXP-MIX-006 — keep STANDS on `bed_ratio_delta_db` (−3.33 → −1.42, floor ±0.21) and `balance_vs_source` (floor ±0.01), NOT on `dialogue_to_bed_snr_db`** (−1.8 → −0.1 is inside the ±2.95 floor).
+- **EXP-ENTITY-001, TRANS-001, MIX-004, SYNC-001, VIDEO-007 — unaffected**: entity consistency has a zero floor; TRANS-001's adequacy gain (0.62 → 0.94) is 2.5× the floor; the others moved metrics by 5–100× their floors.
+- **Open gap**: LSE-C / coverage / sharpness have no floor yet (noise runs had lip-sync off) → VISUAL-NOISE-FLOOR queued (2 identical core-v0 runs). Until it lands, VIDEO-008's LSE-C 5.25 → 5.96 is *unvalidated*.
