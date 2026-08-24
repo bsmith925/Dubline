@@ -610,6 +610,11 @@ def normalized_options(values: dict) -> dict:
         "voice_rights_confirmed": bool(values.get("voice_rights_confirmed")),
         "allow_same_language": bool(values.get("allow_same_language")),
         "delivery_dir": delivery_subdir(values.get("delivery_dir")),
+        # Evaluation-only: reuse a finished job's upstream artifacts so an experiment re-runs
+        # just the stages under test (see docs/experiments; ignored unless a job id is given).
+        "seed_from_job": (re.sub(r"[^0-9a-f]", "", str(values.get("seed_from_job")).lower())[:32]
+                          if values.get("seed_from_job") else None),
+        "seed_tier": (values.get("seed_tier") if values.get("seed_tier") in {"asr", "translation"} else "translation"),
     }
 
 
