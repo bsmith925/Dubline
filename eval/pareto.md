@@ -32,3 +32,15 @@ Quality headline = judge adequacy mean · LSE-C mean · lip-sync coverage mean. 
 - LatentSync rendering = 40 % of pipeline wall → VIDEO-010: inference_steps 20→12 A/B.
 - Candidate measurement = 12 % → TIMING-006: selective measurement (uncertain fits only).
 - Iteration speed: job seeding (reuse separation/ASR/translation) + MUSETALK_ENABLED=false for non-visual experiments → expected trans-001 iteration ≈ 20 min (validation run queued). Seeded pairs also share upstream noise → cleaner comparisons.
+
+## Iteration speed (measured 2026-08-24)
+| run type | wall |
+|---|---|
+| trans-001 full (unseeded, lip-sync on) | 78 min |
+| trans-001 seeded (tier=translation, lip-sync off) | **15 min** |
+| core-v1 full | 179–189 min |
+
+Seeding reuses separation/ASR/translation artifacts from a reference job (19–20 files per clip, hard-linked) so only the stages under test re-run; seeded pairs also share upstream noise, which shrinks the comparison's noise floor.
+
+## Noise floors (3 identical runs) — decision thresholds
+adequacy ±0.13 · stretch mean ±3.8 · worst-clip stretch p90 ±23.4 · fill p10 ±7.9 · fill p50 ±3.2 · padding ±90 ms · d2b SNR ±2.95 dB · bed-ratio ±0.21 dB · balance-vs-source ±0.01 dB · speaker similarity ±0.016 · naturalness MOS ±0.073 · entity consistency ±0.000 · wall ±3 min.
