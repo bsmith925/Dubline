@@ -273,3 +273,25 @@ Three identical trans-001 runs (same `DUB_SEED=1247`, same defaults, lip-sync of
 - **EXP-MIX-006 — keep STANDS on `bed_ratio_delta_db` (−3.33 → −1.42, floor ±0.21) and `balance_vs_source` (floor ±0.01), NOT on `dialogue_to_bed_snr_db`** (−1.8 → −0.1 is inside the ±2.95 floor).
 - **EXP-ENTITY-001, TRANS-001, MIX-004, SYNC-001, VIDEO-007 — unaffected**: entity consistency has a zero floor; TRANS-001's adequacy gain (0.62 → 0.94) is 2.5× the floor; the others moved metrics by 5–100× their floors.
 - **Open gap**: LSE-C / coverage / sharpness have no floor yet (noise runs had lip-sync off) → VISUAL-NOISE-FLOOR queued (2 identical core-v0 runs). Until it lands, VIDEO-008's LSE-C 5.25 → 5.96 is *unvalidated*.
+
+## METRIC VALIDATION without human scoring (adopted 2026-08-24)
+
+Human A/B scoring is not required to know whether a metric works: inject a failure we already
+understand, and check the metric's response against its noise floor. Results on calibration-002's
+anchors (mean delta, ratio to floor):
+
+| injected failure | detected by | effect |
+|---|---|---|
+| audio offset 200 ms | `sync_offset_frames` | 5.0× floor |
+| speed-up 30 % | `dub_speech_s`, `dead_air_s`, `speech_fraction`, `speech_on_static_mouth_s` | 6–8× |
+| mouth blur | `mouth_sharpness_ratio` (18×), `aperture_ratio` (3.9×), `sync_lse_c` (1.2×) | strong/weak |
+| silence gap 1.5 s | `dub_speech_s`, `speech_fraction`, `mouth_motion_on_silence_s`, `coverage_articulation` | 3.4–4.2× |
+
+**`naturalness_mos` (UTMOS) FAILS validation** — response to a 30 % speed-up is −0.046 against its own
+±0.073 floor; blur/gap/offset all ≈ +0.007; whole-corpus range compressed to 1.24–2.37. It is retained
+as a logged column but **must not inform any decision**; candidates to replace it: NISQA-TTS, or a
+paired MOS predictor validated on this same anchor battery first.
+
+`eval/anchors.py build` renders a battery covering the failure modes we have actually shipped bugs for
+(picture offset 4 s, wrong-face render, bed removal, quiet voice, plus the four above), so every new
+metric can be validated the same way before it is allowed to decide anything.
