@@ -75,7 +75,9 @@ def consistency(clusters: dict[str, list[str]]) -> dict:
     for key, spellings in clusters.items():
         if len(spellings) < 2:
             continue
-        forms = sorted({s for s in spellings}, key=lambda s: -spellings.count(s))
+        # possessives are the same name, not a second spelling
+        spellings = [re.sub(r"['’]s$", "", s) for s in spellings]
+        forms = sorted(set(spellings), key=lambda s: -spellings.count(s))
         rows.append({"key": key, "mentions": len(spellings), "spellings": forms, "majority_share": round(spellings.count(forms[0]) / len(spellings), 3)})
     multi = [r for r in rows if len(r["spellings"]) > 1]
     return {"clusters_recurring": len(rows), "clusters_inconsistent": len(multi),
