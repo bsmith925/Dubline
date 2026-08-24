@@ -287,10 +287,23 @@ anchors (mean delta, ratio to floor):
 | mouth blur | `mouth_sharpness_ratio` (18×), `aperture_ratio` (3.9×), `sync_lse_c` (1.2×) | strong/weak |
 | silence gap 1.5 s | `dub_speech_s`, `speech_fraction`, `mouth_motion_on_silence_s`, `coverage_articulation` | 3.4–4.2× |
 
-**`naturalness_mos` (UTMOS) FAILS validation** — response to a 30 % speed-up is −0.046 against its own
-±0.073 floor; blur/gap/offset all ≈ +0.007; whole-corpus range compressed to 1.24–2.37. It is retained
-as a logged column but **must not inform any decision**; candidates to replace it: NISQA-TTS, or a
-paired MOS predictor validated on this same anchor battery first.
+**`naturalness_mos` (UTMOS) — VALIDATED after a corrected test.** My first verdict ("fails") was wrong twice
+over: I scored it on *mixed film audio* (out of domain — UTMOS expects isolated synthesized speech), and I
+judged it against anchors that are not naturalness failures at all (mouth blur is video; offset and silence
+gaps are timing). Corrected test on isolated takes:
+- raw TTS take 2.87 vs the same take after time-fitting **2.37 (−0.50 MOS)** — fitting audibly damages speech;
+- a job with zero stretch/slowdown scores **3.5–4.2** while jobs stretched 55–70 % score **1.4–2.3**;
+- silence padding is irrelevant (trimming: −0.04), so the low scores are the time manipulation itself;
+- vocoder-style damage −0.25 (3.4× floor), muffling/noise ≈ −0.10 (1.3×), gain clipping ≈ 0 (correctly ignores loudness).
+
+So UTMOS is a valid, sensitive measure of *what it measures*: speech naturalness, dominated in our pipeline by
+time-fitting. It stays in the harness and may inform timing decisions. Lesson recorded: an anchor battery only
+validates a metric against failures in that metric's own domain — a metric must be tested on the axis it claims.
+
+**EXP-TIMING-007 (queued from this finding)**: the timing track has been optimizing slot-fill; naturalness is
+the cost side of the same trade. Candidate selection (TIMING-003) already voices alternatives — extend it to
+prefer the candidate that needs the least stretch when fills are comparable, and measure `naturalness_mos`
+(floor ±0.073) against fill/padding. Pareto axis: fill % vs MOS.
 
 `eval/anchors.py build` renders a battery covering the failure modes we have actually shipped bugs for
 (picture offset 4 s, wrong-face render, bed removal, quiet voice, plus the four above), so every new
