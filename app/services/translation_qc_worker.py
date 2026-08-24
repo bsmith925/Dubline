@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 from app.config import settings
@@ -18,7 +19,7 @@ def main() -> None:
     target = str(spec.get("target_language") or "English").upper()
     from llama_cpp import Llama
     gpu_layers = settings.dub_llama_gpu_layers
-    llm = Llama(model_path=spec["model"], n_ctx=8192, n_batch=512, n_threads=10,
+    llm = Llama(model_path=spec["model"], n_ctx=8192, n_batch=512, n_threads=10, seed=int(os.getenv("DUB_SEED", "1247")),
                 n_threads_batch=12, n_gpu_layers=gpu_layers, verbose=False)
     results = []
     # Keep every prompt well below the 8k context even when subtitle cards contain

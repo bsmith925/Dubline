@@ -364,6 +364,13 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
 
         fingerprint = media_fingerprint(original_source, folder)
         store.update(job_id, media_fingerprint=fingerprint)
+        # Reproducibility record: the seed and the sampling knobs that make a run repeatable.
+        store.update(job_id, reproducibility={"seed": settings.dub_seed,
+                                              "translation_temperature": settings.translation_temperature,
+                                              "translation_top_p": settings.translation_top_p,
+                                              "latentsync_guidance_scale": settings.latentsync_guidance_scale,
+                                              "lipsync_engine": settings.lipsync_engine,
+                                              "qwen_tts_clone_mode": settings.qwen_tts_clone_mode})
         update(3, "Registering recurring characters across the whole film")
         face_registry = build_face_registry(
             original_source, folder, source_duration,

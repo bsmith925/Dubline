@@ -169,6 +169,7 @@ class ClipRecord:
     entity_clusters_inconsistent: int | None = None
     translation_entity_preservation: float | None = None    # share of source names (phonetic) present in the dub text
     tts_entity_pronunciation: float | None = None           # share of dub-text names found (phonetic) in the take back-transcription
+    reproducibility: dict | None = None                     # seed + sampling knobs recorded by the pipeline
     lipsync_coverage: float | None = None                   # share of dub speech time inside rendered lip-sync windows
     picture_offset_outside_lipsync_frames: float | None = None   # delivered picture vs ORIGINAL source, outside lip-sync windows (0 = in sync)
     picture_offset_inside_lipsync_frames: float | None = None

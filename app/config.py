@@ -166,6 +166,8 @@ class Settings(BaseSettings):
     dub_lipsync_slack: bool = False
     # EXP-ENTITY-001: program-level name consensus (title lexicon v0) before translation.
     entity_lexicon: bool = False
+    # Reproducibility: one seed drives LLM sampling, TTS and the lip-sync renderer; recorded per job.
+    dub_seed: int = 1247
     latentsync_repo: Path = Path("vendor/LatentSync")
     latentsync_runtime: Path = Path("vendor/latentsync-env")
 
