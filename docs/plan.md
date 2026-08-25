@@ -69,18 +69,20 @@ sharpness, articulation) until VISUAL-NOISE-FLOOR lands**. VIDEO-008's keep
 ## 4. Priorities
 
 ### P0 — timing-for-naturalness (the ~2-MOS lever)
-- **EXP-TIMING-007** (queued): candidate selection prefers least-stretch when fills are
-  comparable. Pre-registered success: naturalness_mos +≥ 0.22 on stretched clips; fill
-  p50 drop ≤ 3.2; adequacy drop ≤ 0.13.
-- **EXP-TIMING-008** (design now, CPU): cap time-manipulation outright. Compression is
-  unbounded today (`audio_fit.py` tempo path); slowdown 1.08. Proposal: hard cap
-  stretch/compress at ~8 %; when no candidate fits, keep the take's natural duration and
-  spill into slack/padding. Padding is MOS-free (trim test: −0.04). Measure
-  naturalness_mos vs dead-air/overrun. One variable: the cap.
+*(updated 2026-08-25 after the offline replay + dose-response, eval/experiments.md)*
+- ~~EXP-TIMING-007~~ **cancelled before its GPU run**: the offline replay showed +0.03
+  MOS (bar was +0.22). Slowdown damage saturates by ~5 %, so least-stretch tie-breaking
+  cannot help. Implementation stays in the tree (`DUB_PREFER_LEAST_STRETCH`, off).
+- **EXP-TIMING-008 — the lever, offline-validated**: `DUB_MAX_SLOWDOWN=1.0` (never slow
+  the voice; pad instead). Paired sim on 137 affected takes: **+0.827 MOS** (11× floor),
+  133/137 improved. First GPU experiment when free (after the visual noise floor): one
+  seeded trans-001 pair confirming fill p50 / padding / mouth-motion / adequacy hold.
+  Compression stays for overruns; its cap (~8–10 % per the dose-response) is a follow-up
+  single variable.
 - Add naturalness_mos to every bundle summary and to the Pareto axes (fill % vs MOS).
-- **EXP-TIMING-005** (after 007/008): pause-structure translation (`[pause]` markers,
-  AWS isochrony paper) — attacks length at the *translation* end so fitting has less to
-  do. SA/PhraseLC metrics already in the harness.
+- **EXP-TIMING-005** (after 008): pause-structure translation (`[pause]` markers, AWS
+  isochrony paper) — attacks length at the *translation* end so fitting has less to do.
+  SA/PhraseLC metrics already in the harness.
 
 ### P1 — unblock and broaden (GPU, when Brad frees it)
 - **VISUAL-NOISE-FLOOR** (2 identical core-v0 runs) — first GPU job. Validates or

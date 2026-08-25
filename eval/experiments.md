@@ -308,3 +308,56 @@ prefer the candidate that needs the least stretch when fills are comparable, and
 `eval/anchors.py build` renders a battery covering the failure modes we have actually shipped bugs for
 (picture offset 4 s, wrong-face render, bed removal, quiet voice, plus the four above), so every new
 metric can be validated the same way before it is allowed to decide anything.
+
+## EXP-TIMING-007 — offline replay (2026-08-25): least-stretch selection does NOT move MOS · GPU run cancelled
+
+- Implemented (`DUB_PREFER_LEAST_STRETCH`, default off; selection extracted to
+  `app/services/take_selection.py`, 13 unit tests). Before spending a run, the policy was replayed over
+  19 existing jobs (reference-5 core-v1 + the three identical noise-floor trans-001 runs) using their
+  recorded `qc.candidate_measurements` and stored candidate takes (`scripts/timing007_replay.py`, CPU).
+- Replay: 145 cues with measured candidates; **49 would switch**; manipulation (|stretch|+|slowdown|)
+  mean 6.81 → 3.98 points, p50 8.0 → 3.25; fill flat (79.1 → 78.7, floor ±3.2). Sanity: the max-fill
+  replay reproduces the shipped choice on 143/145 cues.
+- UTMOS on the 49 switched pairs (shipped fitted vs would-be fitted): **2.34 → 2.37 (+0.03)** — far
+  under the pre-registered +0.22 bar (3× the ±0.073 floor).
+- **Decision: do not run the experiment.** Explained by the dose-response below: slowdown damage
+  saturates by ~5 %, so moving a take from 8 to 3 points of manipulation buys nothing. The offline
+  gate did its job; flag stays in the tree but the track moves to TIMING-008.
+
+## FIT-MOS dose-response (2026-08-25, offline) — slowdown, not compression, is the damage
+
+7 clean raw takes (the only takes in 19 jobs shipped with <1 % manipulation — itself a finding)
+re-fit through the production `fit_audio` at 9 requested levels, UTMOS vs raw, binned by the
+manipulation the fitter actually applied (`scripts/stretch_mos_curve.py`; the requested levels were
+computed off full-file duration, so the negative arms mostly landed on the slowdown cap — applied
+values used instead):
+
+| applied manipulation | ΔMOS vs raw (per-take mean) |
+|---|---|
+| none (refit only: trim, fade, PCM16) | −0.11 |
+| padding 94 → 1377 ms (same take, same slowdown) | ±0.06 — **padding is free** |
+| slowdown ~4.7 % | ≈ −0.9 |
+| slowdown 8 % (the cap the code called "gentle; inaudible") | **−1.17** (range −0.2…−1.76) |
+| compression 5–8 % | −0.2…−1.1 |
+| compression ≥ 10 % | reliably ≤ −1 |
+| compression 35–60 % | −1.3…−2.4 |
+
+One take (charade-office cue 9) is insensitive to everything (−0.2 flat at 39 % compression);
+per-take spread is real. n=7 — directional, but the TIMING-008 sim below confirms the headline on
+n=137.
+
+## EXP-TIMING-008 — never slow the voice down; pad instead · validated offline, confirming run queued
+
+- **Variable**: `DUB_MAX_SLOWDOWN` 1.08 → 1.0 (env override in `audio_fit`; default unchanged —
+  baseline freeze until the confirming run).
+- Offline paired sim (`scripts/timing008_no_slowdown_sim.py`): every take in the 19 jobs whose
+  shipped fit applied > 1 % slowdown (137 takes) re-fit at the same target with slowdown disabled;
+  UTMOS shipped vs re-fitted, same take, same text: **2.241 → 3.068, paired ΔMOS +0.827** (11× the
+  ±0.073 floor), improved 133/137, p10 +0.083 / p90 +1.470. Under-estimates the true gain: the refit
+  overhead alone costs ~0.1.
+- The replay above shows half of all shipped takes sit at the slowdown cap, so this is the largest
+  single naturalness lever found to date (suite MOS mean is 1.88).
+- **Cost side, to be checked in the confirming run** (offline cannot see it): active duration drops
+  up to 8 % on affected takes → fill p50 (floor ±3.2), padding, mouth-motion-on-silence, and judge
+  adequacy must hold. One seeded trans-001 pair when the GPU frees; keep/revert on naturalness_mos
+  vs those constraints.

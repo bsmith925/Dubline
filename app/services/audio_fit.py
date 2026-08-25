@@ -7,6 +7,7 @@ Kept free of ``app.config`` and other pydantic-dependent imports on purpose:
 which only has numpy, soundfile, torch and ffmpeg available.
 """
 
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -62,6 +63,18 @@ def stretch_phrase(values: np.ndarray, rate: int, tempo: float, folder: Path, in
 MAX_SLOWDOWN = 1.08  # gentle; beyond this a slowed voice sounds drugged
 
 
+def max_slowdown() -> float:
+    # EXP-TIMING-008: the UTMOS dose-response (2026-08-25) measured ~-1 MOS at 8 %
+    # slowdown (and ~-0.9 already at 5 %) while padding costs nothing, so "gentle" was
+    # wrong. 1.0 disables slowdown entirely: the take keeps its natural rate and the
+    # spare span becomes padding. Env override so experiments can flip it per run;
+    # kept off app.config on purpose (this module runs in the isolated TTS venvs).
+    try:
+        return float(os.environ.get("DUB_MAX_SLOWDOWN", "") or MAX_SLOWDOWN)
+    except ValueError:
+        return MAX_SLOWDOWN
+
+
 def fit_audio(source: Path, output: Path, target: float, anchors: list[list[float]] | None = None) -> dict:
     """Fit a take to ``target`` seconds.
 
@@ -82,7 +95,7 @@ def fit_audio(source: Path, output: Path, target: float, anchors: list[list[floa
         # then spread the phrases across the span by widening the pauses between
         # them so speech follows the actor's mouth activity through the line.
         relative_runs = [(a - start, b - start) for a, b in runs]
-        slow = min(MAX_SLOWDOWN, target_frames / max(1, len(trimmed)))
+        slow = min(max_slowdown(), target_frames / max(1, len(trimmed)))
         if slow > 1.01:
             with tempfile.TemporaryDirectory(prefix="dubline-slow-") as temp:
                 trimmed = stretch_phrase(trimmed, rate, 1.0 / slow, Path(temp), 0)
