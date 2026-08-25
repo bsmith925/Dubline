@@ -22,6 +22,7 @@ from app.services.gpu_safety import gpu_safety_summary, gpu_stage
 from app.services.languages import iso1, iso2, language as language_info, primary_engine
 from app.services.language_id import FORCE_LANGUAGE_CONFIDENCE, detect_language, same_language
 from app.services.asr import transcribe_aligned
+from app.services.take_selection import select_take
 from app.services.adapter import adapt_dialogue
 from app.services.dialogue import analyze_performance, build_adaptive_dialogue, is_nonverbal_filler, measure_dialogue_leakage, merge_into_utterances
 from app.services.diarization import assign_diarized_speakers, diarize
@@ -945,26 +946,19 @@ def run_pipeline(job_id: str, store: JobStore) -> None:
                         synthesize_voice_lines({"engine": options.get("engine", "indextts"), "items": candidate_items},
                                                folder, candidate_progress, checkpoint)
                 switched = 0
+                policy = "least_stretch" if settings.dub_prefer_least_stretch else "max_fill"
                 for index, texts in texts_by_cue.items():
                     cue = cues[index]; target = float(cue.get("target_seconds") or 0.0)
                     limit = 5.0 if cue.get("mouth_visible") else 8.0
-                    def fitness(active: float, stretch: float) -> float:
-                        # Reward filling the slot; anything needing more compression than the
-                        # timing QC allows is out; prefer the longest acceptable take.
-                        if abs(stretch) > limit or active <= 0:
-                            return -1.0
-                        return min(1.0, active / max(0.1, target))
-                    current_qc = cue.get("qc", {})
-                    best = (fitness(float(current_qc.get("active_duration") or 0.0), float(current_qc.get("stretch_percent") or 0.0)), 0, None)
-                    for k, event in measured_candidates.get(index, {}).items():
-                        score = fitness(float(event.get("active_duration") or 0.0), float(event.get("stretch_percent") or 0.0))
-                        if score > best[0] + 0.02:
-                            best = (score, k, event)
+                    winner = select_take(cue.get("qc", {}), measured_candidates.get(index, {}), target, limit,
+                                         prefer_least_stretch=settings.dub_prefer_least_stretch)
                     cue.setdefault("qc", {})["candidate_measurements"] = {
                         str(k): {"text": texts[k - 1], "active_duration": e.get("active_duration"), "stretch_percent": e.get("stretch_percent"),
+                                 "slowdown_percent": e.get("slowdown_percent"), "padding_ms": e.get("padding_ms"),
                                  "active_fill_percent": e.get("active_fill_percent")} for k, e in measured_candidates.get(index, {}).items()}
-                    if best[1]:
-                        k, event = best[1], best[2]
+                    cue["qc"]["selection_policy"] = policy
+                    if winner:
+                        k, event = winner, measured_candidates[index][winner]
                         shutil.copyfile(candidate_dir / f"{index + 1:06d}-{k}.wav", generated / f"{index + 1:06d}.wav")
                         shutil.copyfile(candidate_dir / f"{index + 1:06d}-{k}-fitted.wav", fitted / f"{index + 1:06d}.wav")
                         cue["english"] = texts[k - 1]; cue["adapted_dialogue"] = texts[k - 1]

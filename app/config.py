@@ -164,6 +164,9 @@ class Settings(BaseSettings):
     dub_measure_all_takes: bool = True
     # EXP-TIMING-004: cues that will be lip-synced get the generous (off-screen) slack, since the mouth is re-rendered.
     dub_lipsync_slack: bool = False
+    # EXP-TIMING-007: among candidates with comparable fill, prefer the one needing the least
+    # time manipulation (time-fitting costs 0.50 MOS per take; padding is free).
+    dub_prefer_least_stretch: bool = False
     # EXP-ENTITY-001: program-level name consensus (title lexicon v0) before translation.
     entity_lexicon: bool = True
     # Reproducibility: one seed drives LLM sampling, TTS and the lip-sync renderer; recorded per job.
